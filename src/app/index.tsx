@@ -40,7 +40,7 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Jadwal Keretaku</Text>
+      <Text style={styles.title}>Aplikasi Keretaku</Text>
       
       {/* 5. Menerapkan Loop menggunakan FlatList (Lebih optimal dari .map untuk daftar panjang) */}
       <FlatList
