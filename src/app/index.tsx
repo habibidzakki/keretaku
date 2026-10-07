@@ -42,7 +42,7 @@ export default function Index() {
     <View style={styles.container}>
       <Text style={styles.title}>Aplikasi Keretaku</Text>
       
-      {/* 5. Menerapkan Loop menggunakan FlatList (Lebih optimal dari .map untuk daftar panjang) */}
+      {/* 5. Menerapkan Loop menggunakan FlatList */}
       <FlatList
         data={daftarTiket}
         keyExtractor={(item) => item.id}
@@ -77,8 +77,8 @@ const styles = StyleSheet.create({
     padding: 16, 
     borderRadius: 12, 
     marginBottom: 16, 
-    elevation: 3, // Shadow untuk Android
-    shadowColor: '#000', // Shadow untuk iOS
+    elevation: 3,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 }, 
     shadowOpacity: 0.1, 
     shadowRadius: 4 
