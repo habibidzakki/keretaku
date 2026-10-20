@@ -1,14 +1,15 @@
-import { DesignSystem } from "@/constants/theme";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import React from "react";
 import {
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DesignSystem } from "@/constants/theme";
 
 const { colors } = DesignSystem;
 
@@ -20,6 +21,23 @@ export default function DetailTiket() {
   const hargaPerTiket = Number(params.harga) || 0;
   const jumlahTiket = Number(params.jumlah) || 1;
   const totalHarga = hargaPerTiket * jumlahTiket;
+
+  // Kursi & Gerbong
+  const defaultWagonId = params.kelas?.toString().toLowerCase().includes("ekonomi")
+    ? "EKO-1"
+    : params.kelas?.toString().toLowerCase().includes("bisnis")
+    ? "BIS-1"
+    : "EKS-1";
+  const gerbongDipilih = (params.gerbong as string) || defaultWagonId;
+  const labelGerbong = gerbongDipilih
+    .replace("EKS-", "Eksekutif ")
+    .replace("EKO-", "Ekonomi ")
+    .replace("BIS-", "Bisnis ");
+
+  const defaultSeats = Array.from({ length: jumlahTiket }, (_, i) => `3${String.fromCharCode(65 + i)}`).join(", ");
+  const kursiDipilih = (params.kursi as string) || defaultSeats;
+  const daftarKursi = kursiDipilih.split(",").map((s) => s.trim());
+  const isKursiManual = Boolean(params.kursi);
 
   const formatRupiah = (angka: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -75,12 +93,8 @@ export default function DetailTiket() {
             {/* Nama Kereta & Kelas */}
             <View style={styles.trainHeaderRow}>
               <View>
-                <Text style={styles.trainName}>
-                  {params.nama || "Kereta Api"}
-                </Text>
-                <Text style={styles.trainClass}>
-                  {params.kelas || "Eksekutif"}
-                </Text>
+                <Text style={styles.trainName}>{params.nama || "Kereta Api"}</Text>
+                <Text style={styles.trainClass}>{params.kelas || "Eksekutif"}</Text>
               </View>
               <View style={styles.trainLogoCircle}>
                 <Text style={styles.trainEmoji}>🚆</Text>
@@ -92,65 +106,75 @@ export default function DetailTiket() {
             {/* Rute Berangkat - Tiba */}
             <View style={styles.routeTimeline}>
               <View style={styles.timelineRow}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    { backgroundColor: colors.primary },
-                  ]}
-                />
+                <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
                 <View style={styles.timelineContent}>
-                  <Text style={styles.timelineTime}>
-                    {params.waktu || "08:00"} WIB
-                  </Text>
-                  <Text style={styles.timelineStation}>
-                    {params.asal || "Stasiun Asal"}
-                  </Text>
-                  <Text style={styles.timelineDate}>
-                    {params.tanggal || "Keberangkatan"}
-                  </Text>
+                  <Text style={styles.timelineTime}>{params.waktu || "08:00"} WIB</Text>
+                  <Text style={styles.timelineStation}>{params.asal || "Stasiun Asal"}</Text>
+                  <Text style={styles.timelineDate}>{params.tanggal || "Keberangkatan"}</Text>
                 </View>
               </View>
 
               <View style={styles.timelineConnector} />
 
               <View style={styles.timelineRow}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    { backgroundColor: colors.activeOrange },
-                  ]}
-                />
+                <View style={[styles.timelineDot, { backgroundColor: colors.activeOrange }]} />
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineTime}>{waktuTiba} WIB</Text>
-                  <Text style={styles.timelineStation}>
-                    {params.tujuan || "Stasiun Tujuan"}
-                  </Text>
-                  <Text style={styles.timelineDate}>
-                    Durasi: {params.durasi || "4"} Jam
-                  </Text>
+                  <Text style={styles.timelineStation}>{params.tujuan || "Stasiun Tujuan"}</Text>
+                  <Text style={styles.timelineDate}>Durasi: {params.durasi || "4"} Jam</Text>
                 </View>
               </View>
             </View>
 
             <View style={styles.cardDivider} />
 
-            {/* Detail Penumpang */}
+            {/* Detail Penumpang & Kursi */}
             <View style={styles.passengerSummary}>
-              <Text style={styles.sectionHeading}>Data Penumpang</Text>
+              <View style={styles.passengerHeaderRow}>
+                <Text style={styles.sectionHeading}>Data Penumpang & Kursi</Text>
+                <TouchableOpacity
+                  style={styles.changeSeatButton}
+                  onPress={() => {
+                    router.push({
+                      pathname: "/pilih-kursi",
+                      params: {
+                        ...params,
+                        kursi: kursiDipilih,
+                        gerbong: gerbongDipilih,
+                      },
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.changeSeatButtonText}>💺 Ubah Kursi</Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.passengerRow}>
                 <Text style={styles.passengerLabel}>Jumlah Penumpang:</Text>
-                <Text style={styles.passengerValue}>
-                  {jumlahTiket} Orang (Dewasa)
-                </Text>
+                <Text style={styles.passengerValue}>{jumlahTiket} Orang (Dewasa)</Text>
               </View>
+
               <View style={styles.passengerRow}>
-                <Text style={styles.passengerLabel}>Status Kursi:</Text>
-                <Text
-                  style={[styles.passengerValue, { color: colors.success }]}
-                >
-                  Tersedia & Terpilih Otomatis
-                </Text>
+                <Text style={styles.passengerLabel}>Gerbong Kereta:</Text>
+                <Text style={styles.passengerValue}>{labelGerbong}</Text>
               </View>
+
+              {/* Tampilan Tag Nomor Kursi Tiap Penumpang */}
+              <View style={styles.seatBadgeList}>
+                {daftarKursi.map((kursiItem, idx) => (
+                  <View key={idx} style={styles.seatBadge}>
+                    <Text style={styles.seatBadgeLabel}>P{idx + 1}:</Text>
+                    <Text style={styles.seatBadgeValue}>{kursiItem}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.seatNoteText}>
+                {isKursiManual
+                  ? "✓ Kursi telah dipilih secara manual oleh Anda"
+                  : "* Kursi dipilih otomatis oleh sistem. Klik 'Ubah Kursi' untuk memilih denah."}
+              </Text>
             </View>
 
             <View style={styles.cardDivider} />
@@ -159,30 +183,20 @@ export default function DetailTiket() {
             <View style={styles.priceSummary}>
               <Text style={styles.sectionHeading}>Rincian Pembayaran</Text>
               <View style={styles.row}>
-                <Text style={styles.feeLabel}>
-                  Tarif Dewasa (x{jumlahTiket})
-                </Text>
-                <Text style={styles.feeValue}>
-                  {formatRupiah(hargaPerTiket * jumlahTiket)}
-                </Text>
+                <Text style={styles.feeLabel}>Tarif Dewasa (x{jumlahTiket})</Text>
+                <Text style={styles.feeValue}>{formatRupiah(hargaPerTiket * jumlahTiket)}</Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.feeLabel}>Biaya Layanan</Text>
-                <Text style={[styles.feeValue, { color: colors.success }]}>
-                  Gratis
-                </Text>
+                <Text style={[styles.feeValue, { color: colors.success }]}>Gratis</Text>
               </View>
 
               <View style={styles.totalRow}>
                 <View>
                   <Text style={styles.totalLabel}>Total Pembayaran</Text>
-                  <Text style={styles.taxIncludeText}>
-                    Sudah termasuk PPN & Asuransi
-                  </Text>
+                  <Text style={styles.taxIncludeText}>Sudah termasuk PPN & Asuransi</Text>
                 </View>
-                <Text style={styles.totalPriceText}>
-                  {formatRupiah(totalHarga)}
-                </Text>
+                <Text style={styles.totalPriceText}>{formatRupiah(totalHarga)}</Text>
               </View>
             </View>
           </View>
@@ -192,9 +206,11 @@ export default function DetailTiket() {
             style={styles.payButton}
             onPress={() => {
               alert(
-                `Pemesanan ${params.nama} (${jumlahTiket} tiket) senilai ${formatRupiah(
-                  totalHarga,
-                )} berhasil diproses!`,
+                `Pemesanan ${params.nama} (${jumlahTiket} tiket)\n` +
+                `Gerbong: ${labelGerbong}\n` +
+                `Kursi: ${kursiDipilih}\n` +
+                `Total: ${formatRupiah(totalHarga)}\n\n` +
+                `Pembayaran berhasil diproses!`
               );
               router.replace("/");
             }}
@@ -368,6 +384,58 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   passengerSummary: {},
+  passengerHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  changeSeatButton: {
+    backgroundColor: colors.lightBlue,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#93C5FD",
+  },
+  changeSeatButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  seatBadgeList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginVertical: 8,
+  },
+  seatBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  seatBadgeLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: "600",
+  },
+  seatBadgeValue: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  seatNoteText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+    marginTop: 4,
+  },
   passengerRow: {
     flexDirection: "row",
     alignItems: "center",
