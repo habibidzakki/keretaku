@@ -1,20 +1,19 @@
+import { DesignSystem } from "@/constants/theme";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DesignSystem } from "@/constants/theme";
 
 const { colors } = DesignSystem;
 
@@ -105,7 +104,9 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
   // Navigation tab state (Beranda, Tiket Saya, Bantuan, Akun)
-  const [activeTab, setActiveTab] = useState<"beranda" | "tiket" | "bantuan" | "akun">("beranda");
+  const [activeTab, setActiveTab] = useState<
+    "beranda" | "tiket" | "bantuan" | "akun"
+  >("beranda");
 
   // Booking Form States
   const [asal, setAsal] = useState<Stasiun>(DAFTAR_STASIUN[0]); // Default PSE
@@ -126,7 +127,9 @@ export default function HomeScreen() {
   const [stationSearchText, setStationSearchText] = useState("");
   const [selectedCityFilter, setSelectedCityFilter] = useState("Semua");
   const [dateModalVisible, setDateModalVisible] = useState(false);
-  const [dateModalType, setDateModalType] = useState<"pergi" | "pulang">("pergi");
+  const [dateModalType, setDateModalType] = useState<"pergi" | "pulang">(
+    "pergi",
+  );
 
   // Notification state
   const [hasNotification, setHasNotification] = useState(true);
@@ -164,7 +167,8 @@ export default function HomeScreen() {
         stasiun.kota.toLowerCase().includes(stationSearchText.toLowerCase());
 
       const matchCity =
-        selectedCityFilter === "Semua" || stasiun.kota.toLowerCase() === selectedCityFilter.toLowerCase();
+        selectedCityFilter === "Semua" ||
+        stasiun.kota.toLowerCase() === selectedCityFilter.toLowerCase();
 
       return matchSearch && matchCity;
     });
@@ -202,7 +206,7 @@ export default function HomeScreen() {
   };
 
   // Navigasi ke Detail
-  const handlePesanTiket = (item: typeof DATA_KERETA[0]) => {
+  const handlePesanTiket = (item: (typeof DATA_KERETA)[0]) => {
     router.push({
       pathname: "/detail",
       params: {
@@ -222,7 +226,9 @@ export default function HomeScreen() {
   // Filter Kereta sesuai Kelas yang Dipilih
   const displayTrains = useMemo(() => {
     if (kelasDipilih === "Semua") return DATA_KERETA;
-    return DATA_KERETA.filter((k) => k.kelas.toLowerCase() === kelasDipilih.toLowerCase());
+    return DATA_KERETA.filter(
+      (k) => k.kelas.toLowerCase() === kelasDipilih.toLowerCase(),
+    );
   }, [kelasDipilih]);
 
   // Quick date options
@@ -243,7 +249,9 @@ export default function HomeScreen() {
             Logo kiri, lonceng notifikasi kanan.
             Background biru (#087CF0) menyatu dengan hero
            ======================================================== */}
-        <View style={[styles.navbar, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
+        <View
+          style={[styles.navbar, { paddingTop: Math.max(insets.top, 14) + 6 }]}
+        >
           <View style={styles.navBrand}>
             <View>
               <View style={styles.brandTitleRow}>
@@ -286,7 +294,9 @@ export default function HomeScreen() {
 
                 <View style={styles.heroContent}>
                   <View style={styles.heroTag}>
-                    <Text style={styles.heroTagText}>⚡ PROMO TIKET RESMI KAI</Text>
+                    <Text style={styles.heroTagText}>
+                      ⚡ PROMO TIKET RESMI KAI
+                    </Text>
                   </View>
                   <Text style={styles.heroTitle}>Pesan Tiket Kereta</Text>
                   <Text style={styles.heroSubtitle}>
@@ -316,7 +326,12 @@ export default function HomeScreen() {
                     accessibilityLabel="Pilih Stasiun Asal"
                   >
                     <View style={styles.stationHeaderRow}>
-                      <View style={[styles.stationIndicator, { backgroundColor: colors.primary }]} />
+                      <View
+                        style={[
+                          styles.stationIndicator,
+                          { backgroundColor: colors.primary },
+                        ]}
+                      />
                       <Text style={styles.stationLabel}>Stasiun Asal</Text>
                     </View>
                     <Text style={styles.stationCode}>{asal.kode}</Text>
@@ -341,14 +356,22 @@ export default function HomeScreen() {
 
                   {/* Destination Station */}
                   <TouchableOpacity
-                    style={[styles.stationTouchBox, styles.stationTouchBoxRight]}
+                    style={[
+                      styles.stationTouchBox,
+                      styles.stationTouchBoxRight,
+                    ]}
                     onPress={() => handleOpenStationModal("tujuan")}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Pilih Stasiun Tujuan"
                   >
                     <View style={styles.stationHeaderRow}>
-                      <View style={[styles.stationIndicator, { backgroundColor: colors.activeOrange }]} />
+                      <View
+                        style={[
+                          styles.stationIndicator,
+                          { backgroundColor: colors.activeOrange },
+                        ]}
+                      />
                       <Text style={styles.stationLabel}>Stasiun Tujuan</Text>
                     </View>
                     <Text style={styles.stationCode}>{tujuan.kode}</Text>
@@ -388,11 +411,21 @@ export default function HomeScreen() {
                         <Switch
                           value={isPulangPergi}
                           onValueChange={(val) => setIsPulangPergi(val)}
-                          trackColor={{ false: colors.divider, true: colors.lightBlue }}
-                          thumbColor={isPulangPergi ? colors.primary : "#FFFFFF"}
+                          trackColor={{
+                            false: colors.divider,
+                            true: colors.lightBlue,
+                          }}
+                          thumbColor={
+                            isPulangPergi ? colors.primary : "#FFFFFF"
+                          }
                           accessibilityLabel="Toggle Pulang-Pergi"
                         />
-                        <Text style={[styles.switchLabel, isPulangPergi && styles.switchLabelActive]}>
+                        <Text
+                          style={[
+                            styles.switchLabel,
+                            isPulangPergi && styles.switchLabelActive,
+                          ]}
+                        >
                           {isPulangPergi ? "Ya" : "Tidak"}
                         </Text>
                       </View>
@@ -414,7 +447,9 @@ export default function HomeScreen() {
                         accessibilityLabel="Ubah Tanggal Pulang"
                       >
                         <Text style={styles.calendarIcon}>📅</Text>
-                        <Text style={styles.dateValueText}>{tanggalPulang}</Text>
+                        <Text style={styles.dateValueText}>
+                          {tanggalPulang}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -426,7 +461,9 @@ export default function HomeScreen() {
                 <View style={styles.passengerSection}>
                   <View>
                     <Text style={styles.fieldLabel}>Jumlah Penumpang</Text>
-                    <Text style={styles.passengerSubText}>Usia 3 tahun ke atas</Text>
+                    <Text style={styles.passengerSubText}>
+                      Usia 3 tahun ke atas
+                    </Text>
                   </View>
 
                   <View style={styles.counterRow}>
@@ -436,7 +473,9 @@ export default function HomeScreen() {
                         jumlahPenumpang <= 1 && styles.counterBtnDisabled,
                       ]}
                       disabled={jumlahPenumpang <= 1}
-                      onPress={() => setJumlahPenumpang((prev) => Math.max(1, prev - 1))}
+                      onPress={() =>
+                        setJumlahPenumpang((prev) => Math.max(1, prev - 1))
+                      }
                       accessibilityRole="button"
                       accessibilityLabel="Kurangi Jumlah Penumpang"
                     >
@@ -451,7 +490,9 @@ export default function HomeScreen() {
                     </TouchableOpacity>
 
                     <View style={styles.counterDisplay}>
-                      <Text style={styles.counterNumberText}>{jumlahPenumpang}</Text>
+                      <Text style={styles.counterNumberText}>
+                        {jumlahPenumpang}
+                      </Text>
                       <Text style={styles.counterLabelText}>Orang</Text>
                     </View>
 
@@ -461,7 +502,9 @@ export default function HomeScreen() {
                         jumlahPenumpang >= 8 && styles.counterBtnDisabled,
                       ]}
                       disabled={jumlahPenumpang >= 8}
-                      onPress={() => setJumlahPenumpang((prev) => Math.min(8, prev + 1))}
+                      onPress={() =>
+                        setJumlahPenumpang((prev) => Math.min(8, prev + 1))
+                      }
                       accessibilityRole="button"
                       accessibilityLabel="Tambah Jumlah Penumpang"
                     >
@@ -530,27 +573,36 @@ export default function HomeScreen() {
               <View style={styles.resultsContainer}>
                 <View style={styles.resultsHeaderRow}>
                   <View>
-                    <Text style={styles.resultsTitle}>Jadwal Kereta Tersedia</Text>
+                    <Text style={styles.resultsTitle}>
+                      Jadwal Kereta Tersedia
+                    </Text>
                     <Text style={styles.resultsSubtitle}>
                       {asal.kode} ➔ {tujuan.kode} • {tanggalPergi}
                     </Text>
                   </View>
                   <View style={styles.trainCountBadge}>
-                    <Text style={styles.trainCountText}>{displayTrains.length} Kereta</Text>
+                    <Text style={styles.trainCountText}>
+                      {displayTrains.length} Kereta
+                    </Text>
                   </View>
                 </View>
 
                 {searching ? (
                   <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={styles.loadingText}>Mencari ketersediaan kursi...</Text>
+                    <Text style={styles.loadingText}>
+                      Mencari ketersediaan kursi...
+                    </Text>
                   </View>
                 ) : displayTrains.length === 0 ? (
                   <View style={styles.emptyStateBox}>
                     <Text style={styles.emptyStateEmoji}>🚆</Text>
-                    <Text style={styles.emptyStateTitle}>Tidak Ada Kereta Ditemukan</Text>
+                    <Text style={styles.emptyStateTitle}>
+                      Tidak Ada Kereta Ditemukan
+                    </Text>
                     <Text style={styles.emptyStateText}>
-                      Coba ganti filter kelas atau stasiun untuk melihat jadwal lainnya.
+                      Coba ganti filter kelas atau stasiun untuk melihat jadwal
+                      lainnya.
                     </Text>
                   </View>
                 ) : (
@@ -561,7 +613,9 @@ export default function HomeScreen() {
                         {/* Header Kartu Kereta */}
                         <View style={styles.trainCardHeader}>
                           <View style={styles.trainNameGroup}>
-                            <Text style={styles.trainNameText}>{item.nama}</Text>
+                            <Text style={styles.trainNameText}>
+                              {item.nama}
+                            </Text>
                             <View style={styles.seatsBadge}>
                               <Text style={styles.seatsBadgeText}>
                                 Sisa {item.sisaKursi} kursi
@@ -574,8 +628,8 @@ export default function HomeScreen() {
                               item.kelas === "Eksekutif"
                                 ? styles.classBadgeEksekutif
                                 : item.kelas === "Bisnis"
-                                ? styles.classBadgeBisnis
-                                : styles.classBadgeEkonomi,
+                                  ? styles.classBadgeBisnis
+                                  : styles.classBadgeEkonomi,
                             ]}
                           >
                             <Text
@@ -584,8 +638,8 @@ export default function HomeScreen() {
                                 item.kelas === "Eksekutif"
                                   ? styles.classBadgeTextEksekutif
                                   : item.kelas === "Bisnis"
-                                  ? styles.classBadgeTextBisnis
-                                  : styles.classBadgeTextEkonomi,
+                                    ? styles.classBadgeTextBisnis
+                                    : styles.classBadgeTextEkonomi,
                               ]}
                             >
                               {item.kelas}
@@ -597,11 +651,15 @@ export default function HomeScreen() {
                         <View style={styles.journeyRow}>
                           <View style={styles.journeyPoint}>
                             <Text style={styles.journeyTime}>{item.waktu}</Text>
-                            <Text style={styles.journeyStation}>{asal.kode}</Text>
+                            <Text style={styles.journeyStation}>
+                              {asal.kode}
+                            </Text>
                           </View>
 
                           <View style={styles.journeyLineContainer}>
-                            <Text style={styles.durationText}>{item.durasi} jam</Text>
+                            <Text style={styles.durationText}>
+                              {item.durasi} jam
+                            </Text>
                             <View style={styles.journeyTrack}>
                               <View style={styles.journeyTrackDot} />
                               <View style={styles.journeyTrackLine} />
@@ -612,9 +670,16 @@ export default function HomeScreen() {
                             <Text style={styles.directText}>Langsung</Text>
                           </View>
 
-                          <View style={[styles.journeyPoint, { alignItems: "flex-end" }]}>
+                          <View
+                            style={[
+                              styles.journeyPoint,
+                              { alignItems: "flex-end" },
+                            ]}
+                          >
                             <Text style={styles.journeyTime}>{waktuTiba}</Text>
-                            <Text style={styles.journeyStation}>{tujuan.kode}</Text>
+                            <Text style={styles.journeyStation}>
+                              {tujuan.kode}
+                            </Text>
                           </View>
                         </View>
 
@@ -623,7 +688,9 @@ export default function HomeScreen() {
                         {/* Footer Kartu Kereta: Harga & Pesan */}
                         <View style={styles.trainCardFooter}>
                           <View>
-                            <Text style={styles.pricePerPersonLabel}>Harga per orang</Text>
+                            <Text style={styles.pricePerPersonLabel}>
+                              Harga per orang
+                            </Text>
                             <Text style={styles.trainPriceText}>
                               {formatRupiah(item.harga)}
                             </Text>
@@ -636,7 +703,9 @@ export default function HomeScreen() {
                             accessibilityRole="button"
                             accessibilityLabel={`Pesan tiket ${item.nama}`}
                           >
-                            <Text style={styles.selectTrainBtnText}>Pesan Tiket</Text>
+                            <Text style={styles.selectTrainBtnText}>
+                              Pesan Tiket
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -654,19 +723,26 @@ export default function HomeScreen() {
             <View style={styles.tabContentContainer}>
               <View style={styles.tabContentHeader}>
                 <Text style={styles.tabContentTitle}>Tiket Saya</Text>
-                <Text style={styles.tabContentSub}>Daftar perjalanan & e-ticket Anda</Text>
+                <Text style={styles.tabContentSub}>
+                  Daftar perjalanan & e-ticket Anda
+                </Text>
               </View>
               <View style={styles.ticketEmptyCard}>
                 <Text style={styles.ticketEmptyIcon}>🎟️</Text>
-                <Text style={styles.ticketEmptyTitle}>Belum Ada Tiket Aktif</Text>
+                <Text style={styles.ticketEmptyTitle}>
+                  Belum Ada Tiket Aktif
+                </Text>
                 <Text style={styles.ticketEmptyText}>
-                  Perjalanan yang Anda pesan akan langsung tampil di sini dengan QR Code boarding pass.
+                  Perjalanan yang Anda pesan akan langsung tampil di sini dengan
+                  QR Code boarding pass.
                 </Text>
                 <TouchableOpacity
                   style={styles.tabActionButton}
                   onPress={() => setActiveTab("beranda")}
                 >
-                  <Text style={styles.tabActionButtonText}>Cari Tiket Sekarang</Text>
+                  <Text style={styles.tabActionButtonText}>
+                    Cari Tiket Sekarang
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -679,7 +755,9 @@ export default function HomeScreen() {
             <View style={styles.tabContentContainer}>
               <View style={styles.tabContentHeader}>
                 <Text style={styles.tabContentTitle}>Pusat Bantuan</Text>
-                <Text style={styles.tabContentSub}>Layanan 24/7 Keretaku Customer Care</Text>
+                <Text style={styles.tabContentSub}>
+                  Layanan 24/7 Keretaku Customer Care
+                </Text>
               </View>
 
               <View style={styles.helpCardsList}>
@@ -687,21 +765,29 @@ export default function HomeScreen() {
                   <Text style={styles.helpCardIcon}>📞</Text>
                   <View style={styles.helpCardContent}>
                     <Text style={styles.helpCardTitle}>Contact Center 121</Text>
-                    <Text style={styles.helpCardDesc}>Bebas pulsa untuk keluhan dan info jadwal</Text>
+                    <Text style={styles.helpCardDesc}>
+                      Bebas pulsa untuk keluhan dan info jadwal
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.helpCard}>
                   <Text style={styles.helpCardIcon}>💬</Text>
                   <View style={styles.helpCardContent}>
                     <Text style={styles.helpCardTitle}>Live Chat WhatsApp</Text>
-                    <Text style={styles.helpCardDesc}>Respon cepat admin 24 jam</Text>
+                    <Text style={styles.helpCardDesc}>
+                      Respon cepat admin 24 jam
+                    </Text>
                   </View>
                 </View>
                 <View style={styles.helpCard}>
                   <Text style={styles.helpCardIcon}>❓</Text>
                   <View style={styles.helpCardContent}>
-                    <Text style={styles.helpCardTitle}>Panduan Reschedule & Refund</Text>
-                    <Text style={styles.helpCardDesc}>Tata cara pembatalan dan ubah jadwal</Text>
+                    <Text style={styles.helpCardTitle}>
+                      Panduan Reschedule & Refund
+                    </Text>
+                    <Text style={styles.helpCardDesc}>
+                      Tata cara pembatalan dan ubah jadwal
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -715,7 +801,9 @@ export default function HomeScreen() {
             <View style={styles.tabContentContainer}>
               <View style={styles.tabContentHeader}>
                 <Text style={styles.tabContentTitle}>Profil Akun</Text>
-                <Text style={styles.tabContentSub}>Kelola data penumpang & keamanan</Text>
+                <Text style={styles.tabContentSub}>
+                  Kelola data penumpang & keamanan
+                </Text>
               </View>
 
               <View style={styles.profileCard}>
@@ -726,20 +814,25 @@ export default function HomeScreen() {
                   <Text style={styles.profileName}>Pengguna Keretaku</Text>
                   <Text style={styles.profileEmail}>penumpang@keretaku.id</Text>
                   <View style={styles.memberBadge}>
-                    <Text style={styles.memberBadgeText}>Member Terverifikasi</Text>
+                    <Text style={styles.memberBadgeText}>
+                      Member Terverifikasi
+                    </Text>
                   </View>
                 </View>
               </View>
 
               <View style={styles.accountMenuWrapper}>
-                {["Daftar Penumpang Tersimpan", "Riwayat Transaksi", "Pengaturan Bahasa", "Tentang Aplikasi Keretaku"].map(
-                  (menu, i) => (
-                    <TouchableOpacity key={i} style={styles.accountMenuItem}>
-                      <Text style={styles.accountMenuText}>{menu}</Text>
-                      <Text style={styles.accountMenuChevron}>›</Text>
-                    </TouchableOpacity>
-                  )
-                )}
+                {[
+                  "Daftar Penumpang Tersimpan",
+                  "Riwayat Transaksi",
+                  "Pengaturan Bahasa",
+                  "Tentang Aplikasi Keretaku",
+                ].map((menu, i) => (
+                  <TouchableOpacity key={i} style={styles.accountMenuItem}>
+                    <Text style={styles.accountMenuText}>{menu}</Text>
+                    <Text style={styles.accountMenuChevron}>›</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           )}
@@ -775,7 +868,9 @@ export default function HomeScreen() {
               >
                 🏠
               </Text>
-              {activeTab === "beranda" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "beranda" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -805,7 +900,9 @@ export default function HomeScreen() {
               >
                 🎫
               </Text>
-              {activeTab === "tiket" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "tiket" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -835,7 +932,9 @@ export default function HomeScreen() {
               >
                 💬
               </Text>
-              {activeTab === "bantuan" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "bantuan" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -865,7 +964,9 @@ export default function HomeScreen() {
               >
                 👤
               </Text>
-              {activeTab === "akun" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "akun" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -930,27 +1031,34 @@ export default function HomeScreen() {
                 style={styles.cityFilterScroll}
                 contentContainerStyle={styles.cityFilterContent}
               >
-                {["Semua", "Jakarta", "Surabaya", "Bandung", "Yogyakarta", "Malang"].map(
-                  (city) => (
-                    <TouchableOpacity
-                      key={city}
+                {[
+                  "Semua",
+                  "Jakarta",
+                  "Surabaya",
+                  "Bandung",
+                  "Yogyakarta",
+                  "Malang",
+                ].map((city) => (
+                  <TouchableOpacity
+                    key={city}
+                    style={[
+                      styles.cityFilterChip,
+                      selectedCityFilter === city &&
+                        styles.cityFilterChipActive,
+                    ]}
+                    onPress={() => setSelectedCityFilter(city)}
+                  >
+                    <Text
                       style={[
-                        styles.cityFilterChip,
-                        selectedCityFilter === city && styles.cityFilterChipActive,
+                        styles.cityFilterChipText,
+                        selectedCityFilter === city &&
+                          styles.cityFilterChipTextActive,
                       ]}
-                      onPress={() => setSelectedCityFilter(city)}
                     >
-                      <Text
-                        style={[
-                          styles.cityFilterChipText,
-                          selectedCityFilter === city && styles.cityFilterChipTextActive,
-                        ]}
-                      >
-                        {city}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )}
+                      {city}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </ScrollView>
 
               {/* List Stasiun */}
@@ -971,11 +1079,17 @@ export default function HomeScreen() {
                     >
                       <View style={styles.stationListItemLeft}>
                         <View style={styles.stationCodeBadge}>
-                          <Text style={styles.stationCodeBadgeText}>{stasiun.kode}</Text>
+                          <Text style={styles.stationCodeBadgeText}>
+                            {stasiun.kode}
+                          </Text>
                         </View>
                         <View style={styles.stationNameInfo}>
-                          <Text style={styles.stationItemName}>{stasiun.nama}</Text>
-                          <Text style={styles.stationItemCity}>{stasiun.kota}</Text>
+                          <Text style={styles.stationItemName}>
+                            {stasiun.nama}
+                          </Text>
+                          <Text style={styles.stationItemCity}>
+                            {stasiun.kota}
+                          </Text>
                         </View>
                       </View>
                       {isCurrent && (

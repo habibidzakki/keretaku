@@ -1,6 +1,6 @@
+import { DesignSystem } from "@/constants/theme";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { DesignSystem } from "@/constants/theme";
 
 export default function RootLayout() {
   return (

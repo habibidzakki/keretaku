@@ -1,15 +1,14 @@
+import { DesignSystem } from "@/constants/theme";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
 import {
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DesignSystem } from "@/constants/theme";
 
 const { colors } = DesignSystem;
 
@@ -76,8 +75,12 @@ export default function DetailTiket() {
             {/* Nama Kereta & Kelas */}
             <View style={styles.trainHeaderRow}>
               <View>
-                <Text style={styles.trainName}>{params.nama || "Kereta Api"}</Text>
-                <Text style={styles.trainClass}>{params.kelas || "Eksekutif"}</Text>
+                <Text style={styles.trainName}>
+                  {params.nama || "Kereta Api"}
+                </Text>
+                <Text style={styles.trainClass}>
+                  {params.kelas || "Eksekutif"}
+                </Text>
               </View>
               <View style={styles.trainLogoCircle}>
                 <Text style={styles.trainEmoji}>🚆</Text>
@@ -89,22 +92,42 @@ export default function DetailTiket() {
             {/* Rute Berangkat - Tiba */}
             <View style={styles.routeTimeline}>
               <View style={styles.timelineRow}>
-                <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+                <View
+                  style={[
+                    styles.timelineDot,
+                    { backgroundColor: colors.primary },
+                  ]}
+                />
                 <View style={styles.timelineContent}>
-                  <Text style={styles.timelineTime}>{params.waktu || "08:00"} WIB</Text>
-                  <Text style={styles.timelineStation}>{params.asal || "Stasiun Asal"}</Text>
-                  <Text style={styles.timelineDate}>{params.tanggal || "Keberangkatan"}</Text>
+                  <Text style={styles.timelineTime}>
+                    {params.waktu || "08:00"} WIB
+                  </Text>
+                  <Text style={styles.timelineStation}>
+                    {params.asal || "Stasiun Asal"}
+                  </Text>
+                  <Text style={styles.timelineDate}>
+                    {params.tanggal || "Keberangkatan"}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.timelineConnector} />
 
               <View style={styles.timelineRow}>
-                <View style={[styles.timelineDot, { backgroundColor: colors.activeOrange }]} />
+                <View
+                  style={[
+                    styles.timelineDot,
+                    { backgroundColor: colors.activeOrange },
+                  ]}
+                />
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineTime}>{waktuTiba} WIB</Text>
-                  <Text style={styles.timelineStation}>{params.tujuan || "Stasiun Tujuan"}</Text>
-                  <Text style={styles.timelineDate}>Durasi: {params.durasi || "4"} Jam</Text>
+                  <Text style={styles.timelineStation}>
+                    {params.tujuan || "Stasiun Tujuan"}
+                  </Text>
+                  <Text style={styles.timelineDate}>
+                    Durasi: {params.durasi || "4"} Jam
+                  </Text>
                 </View>
               </View>
             </View>
@@ -116,11 +139,15 @@ export default function DetailTiket() {
               <Text style={styles.sectionHeading}>Data Penumpang</Text>
               <View style={styles.passengerRow}>
                 <Text style={styles.passengerLabel}>Jumlah Penumpang:</Text>
-                <Text style={styles.passengerValue}>{jumlahTiket} Orang (Dewasa)</Text>
+                <Text style={styles.passengerValue}>
+                  {jumlahTiket} Orang (Dewasa)
+                </Text>
               </View>
               <View style={styles.passengerRow}>
                 <Text style={styles.passengerLabel}>Status Kursi:</Text>
-                <Text style={[styles.passengerValue, { color: colors.success }]}>
+                <Text
+                  style={[styles.passengerValue, { color: colors.success }]}
+                >
                   Tersedia & Terpilih Otomatis
                 </Text>
               </View>
@@ -132,20 +159,30 @@ export default function DetailTiket() {
             <View style={styles.priceSummary}>
               <Text style={styles.sectionHeading}>Rincian Pembayaran</Text>
               <View style={styles.row}>
-                <Text style={styles.feeLabel}>Tarif Dewasa (x{jumlahTiket})</Text>
-                <Text style={styles.feeValue}>{formatRupiah(hargaPerTiket * jumlahTiket)}</Text>
+                <Text style={styles.feeLabel}>
+                  Tarif Dewasa (x{jumlahTiket})
+                </Text>
+                <Text style={styles.feeValue}>
+                  {formatRupiah(hargaPerTiket * jumlahTiket)}
+                </Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.feeLabel}>Biaya Layanan</Text>
-                <Text style={[styles.feeValue, { color: colors.success }]}>Gratis</Text>
+                <Text style={[styles.feeValue, { color: colors.success }]}>
+                  Gratis
+                </Text>
               </View>
 
               <View style={styles.totalRow}>
                 <View>
                   <Text style={styles.totalLabel}>Total Pembayaran</Text>
-                  <Text style={styles.taxIncludeText}>Sudah termasuk PPN & Asuransi</Text>
+                  <Text style={styles.taxIncludeText}>
+                    Sudah termasuk PPN & Asuransi
+                  </Text>
                 </View>
-                <Text style={styles.totalPriceText}>{formatRupiah(totalHarga)}</Text>
+                <Text style={styles.totalPriceText}>
+                  {formatRupiah(totalHarga)}
+                </Text>
               </View>
             </View>
           </View>
@@ -156,8 +193,8 @@ export default function DetailTiket() {
             onPress={() => {
               alert(
                 `Pemesanan ${params.nama} (${jumlahTiket} tiket) senilai ${formatRupiah(
-                  totalHarga
-                )} berhasil diproses!`
+                  totalHarga,
+                )} berhasil diproses!`,
               );
               router.replace("/");
             }}
