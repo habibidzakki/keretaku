@@ -43,6 +43,14 @@ export default function RootLayout() {
             headerShown: true,
           }}
         />
+        {/* Halaman Pembayaran */}
+        <Stack.Screen
+          name="pembayaran"
+          options={{
+            title: "Pembayaran Tiket",
+            headerShown: true,
+          }}
+        />
         <Stack.Screen
           name="explore"
           options={{

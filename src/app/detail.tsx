@@ -205,18 +205,19 @@ export default function DetailTiket() {
           <TouchableOpacity
             style={styles.payButton}
             onPress={() => {
-              alert(
-                `Pemesanan ${params.nama} (${jumlahTiket} tiket)\n` +
-                `Gerbong: ${labelGerbong}\n` +
-                `Kursi: ${kursiDipilih}\n` +
-                `Total: ${formatRupiah(totalHarga)}\n\n` +
-                `Pembayaran berhasil diproses!`
-              );
-              router.replace("/");
+              router.push({
+                pathname: "/pembayaran",
+                params: {
+                  ...params,
+                  gerbong: labelGerbong,
+                  kursi: kursiDipilih,
+                  totalHarga: totalHarga.toString(),
+                },
+              });
             }}
             activeOpacity={0.85}
           >
-            <Text style={styles.payButtonText}>Lanjutkan Pembayaran</Text>
+            <Text style={styles.payButtonText}>Lanjutkan Pembayaran →</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
