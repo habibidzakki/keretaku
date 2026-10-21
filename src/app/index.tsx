@@ -1,5 +1,5 @@
-import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -102,6 +102,7 @@ const KELAS_OPTIONS = ["Semua", "Ekonomi", "Bisnis", "Eksekutif"];
 
 export default function HomeScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
   // Dark Mode State
@@ -120,6 +121,15 @@ export default function HomeScreen() {
 
   // Navigation tab state (Beranda, Tiket Saya, Bantuan, Akun)
   const [activeTab, setActiveTab] = useState<"beranda" | "tiket" | "bantuan" | "akun">("beranda");
+
+  // Penerapan Hook useEffect: Inisialisasi tab dan listener pembaruan status
+  useEffect(() => {
+    if (params.tab && typeof params.tab === "string") {
+      if (["beranda", "tiket", "bantuan", "akun"].includes(params.tab)) {
+        setActiveTab(params.tab as any);
+      }
+    }
+  }, [params.tab]);
 
   // Booking Form States
   const [asal, setAsal] = useState<Stasiun>(DAFTAR_STASIUN[0]); // Default PSE
