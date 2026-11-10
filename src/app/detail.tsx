@@ -1,5 +1,8 @@
+import { DesignSystem } from "@/constants/theme";
+import { prosesSimulasiPembayaran } from "@/services/api";
+import { PaymentRequest, PaymentResult } from "@/types";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,9 +14,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DesignSystem } from "@/constants/theme";
-import { prosesSimulasiPembayaran } from "@/services/api";
-import { PaymentRequest, PaymentResult } from "@/types";
 
 const { colors } = DesignSystem;
 
@@ -29,11 +29,14 @@ export default function DetailTiket() {
   const totalHarga = hargaPerTiket * jumlahTiket;
 
   // Kursi & Gerbong
-  const defaultWagonId = params.kelas?.toString().toLowerCase().includes("ekonomi")
+  const defaultWagonId = params.kelas
+    ?.toString()
+    .toLowerCase()
+    .includes("ekonomi")
     ? "EKO-1"
     : params.kelas?.toString().toLowerCase().includes("bisnis")
-    ? "BIS-1"
-    : "EKS-1";
+      ? "BIS-1"
+      : "EKS-1";
   const gerbongDipilih = (params.gerbong as string) || defaultWagonId;
   const labelGerbong = gerbongDipilih
     .replace("EKS-", "Eksekutif ")
@@ -42,7 +45,7 @@ export default function DetailTiket() {
 
   const defaultSeats = Array.from(
     { length: jumlahTiket },
-    (_, i) => `3${String.fromCharCode(65 + i)}`
+    (_, i) => `3${String.fromCharCode(65 + i)}`,
   ).join(", ");
   const kursiDipilih = (params.kursi as string) || defaultSeats;
   const daftarKursi = kursiDipilih.split(",").map((s) => s.trim());
@@ -72,7 +75,7 @@ export default function DetailTiket() {
 
   const waktuTiba = hitungWaktuTiba(
     params.waktu as string,
-    Number(params.durasi)
+    Number(params.durasi),
   );
 
   const handleLanjutkanPembayaran = () => {
@@ -106,7 +109,7 @@ export default function DetailTiket() {
               text: "Kembali ke Beranda",
               onPress: () => router.replace("/"),
             },
-          ]
+          ],
         );
       })
       .catch((error: Error) => {
@@ -144,8 +147,12 @@ export default function DetailTiket() {
             {/* Nama Kereta & Kelas */}
             <View style={styles.trainHeaderRow}>
               <View>
-                <Text style={styles.trainName}>{params.nama || "Kereta Api"}</Text>
-                <Text style={styles.trainClass}>{params.kelas || "Eksekutif"}</Text>
+                <Text style={styles.trainName}>
+                  {params.nama || "Kereta Api"}
+                </Text>
+                <Text style={styles.trainClass}>
+                  {params.kelas || "Eksekutif"}
+                </Text>
               </View>
               <View style={styles.trainLogoCircle}>
                 <Text style={styles.trainEmoji}>🚆</Text>
@@ -157,22 +164,42 @@ export default function DetailTiket() {
             {/* Rute Berangkat - Tiba */}
             <View style={styles.routeTimeline}>
               <View style={styles.timelineRow}>
-                <View style={[styles.timelineDot, { backgroundColor: colors.primary }]} />
+                <View
+                  style={[
+                    styles.timelineDot,
+                    { backgroundColor: colors.primary },
+                  ]}
+                />
                 <View style={styles.timelineContent}>
-                  <Text style={styles.timelineTime}>{params.waktu || "08:00"} WIB</Text>
-                  <Text style={styles.timelineStation}>{params.asal || "Stasiun Asal"}</Text>
-                  <Text style={styles.timelineDate}>{params.tanggal || "Keberangkatan"}</Text>
+                  <Text style={styles.timelineTime}>
+                    {params.waktu || "08:00"} WIB
+                  </Text>
+                  <Text style={styles.timelineStation}>
+                    {params.asal || "Stasiun Asal"}
+                  </Text>
+                  <Text style={styles.timelineDate}>
+                    {params.tanggal || "Keberangkatan"}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.timelineConnector} />
 
               <View style={styles.timelineRow}>
-                <View style={[styles.timelineDot, { backgroundColor: colors.activeOrange }]} />
+                <View
+                  style={[
+                    styles.timelineDot,
+                    { backgroundColor: colors.activeOrange },
+                  ]}
+                />
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineTime}>{waktuTiba} WIB</Text>
-                  <Text style={styles.timelineStation}>{params.tujuan || "Stasiun Tujuan"}</Text>
-                  <Text style={styles.timelineDate}>Durasi: {params.durasi || "4"} Jam</Text>
+                  <Text style={styles.timelineStation}>
+                    {params.tujuan || "Stasiun Tujuan"}
+                  </Text>
+                  <Text style={styles.timelineDate}>
+                    Durasi: {params.durasi || "4"} Jam
+                  </Text>
                 </View>
               </View>
             </View>
@@ -182,21 +209,32 @@ export default function DetailTiket() {
             {/* Detail Penumpang & Kursi */}
             <View style={styles.passengerSummary}>
               <View style={styles.passengerHeaderRow}>
-                <Text style={styles.sectionHeading}>Data Penumpang & Kursi</Text>
+                <Text style={styles.sectionHeading}>
+                  Data Penumpang & Kursi
+                </Text>
                 <TouchableOpacity
                   style={styles.changeSeatButton}
                   onPress={() => {
-                    router.push("/profile" as any);
+                    router.push({
+                      pathname: "/pilih-kursi" as any,
+                      params: {
+                        ...params,
+                        gerbong: gerbongDipilih,
+                        kursi: kursiDipilih,
+                      },
+                    });
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.changeSeatButtonText}>Lihat Profil</Text>
+                  <Text style={styles.changeSeatButtonText}>Ubah Kursi</Text>
                 </TouchableOpacity>
               </View>
 
               <View style={styles.passengerRow}>
                 <Text style={styles.passengerLabel}>Jumlah Penumpang:</Text>
-                <Text style={styles.passengerValue}>{jumlahTiket} Orang (Dewasa)</Text>
+                <Text style={styles.passengerValue}>
+                  {jumlahTiket} Orang (Dewasa)
+                </Text>
               </View>
 
               <View style={styles.passengerRow}>
@@ -217,7 +255,7 @@ export default function DetailTiket() {
               <Text style={styles.seatNoteText}>
                 {isKursiManual
                   ? "✓ Kursi telah dipilih secara manual oleh Anda"
-                  : "* Kursi dipilih otomatis oleh sistem. Klik 'Lihat Profil' untuk data akun."}
+                  : "* Kursi dipilih otomatis oleh sistem. Klik 'Ubah Kursi' untuk memilih sendiri."}
               </Text>
             </View>
 
@@ -227,20 +265,30 @@ export default function DetailTiket() {
             <View style={styles.priceSummary}>
               <Text style={styles.sectionHeading}>Rincian Pembayaran</Text>
               <View style={styles.row}>
-                <Text style={styles.feeLabel}>Tarif Dewasa (x{jumlahTiket})</Text>
-                <Text style={styles.feeValue}>{formatRupiah(hargaPerTiket * jumlahTiket)}</Text>
+                <Text style={styles.feeLabel}>
+                  Tarif Dewasa (x{jumlahTiket})
+                </Text>
+                <Text style={styles.feeValue}>
+                  {formatRupiah(hargaPerTiket * jumlahTiket)}
+                </Text>
               </View>
               <View style={styles.row}>
                 <Text style={styles.feeLabel}>Biaya Layanan</Text>
-                <Text style={[styles.feeValue, { color: colors.success }]}>Gratis</Text>
+                <Text style={[styles.feeValue, { color: colors.success }]}>
+                  Gratis
+                </Text>
               </View>
 
               <View style={styles.totalRow}>
                 <View>
                   <Text style={styles.totalLabel}>Total Pembayaran</Text>
-                  <Text style={styles.taxIncludeText}>Sudah termasuk PPN & Asuransi</Text>
+                  <Text style={styles.taxIncludeText}>
+                    Sudah termasuk PPN & Asuransi
+                  </Text>
                 </View>
-                <Text style={styles.totalPriceText}>{formatRupiah(totalHarga)}</Text>
+                <Text style={styles.totalPriceText}>
+                  {formatRupiah(totalHarga)}
+                </Text>
               </View>
             </View>
           </View>
@@ -249,16 +297,31 @@ export default function DetailTiket() {
           <TouchableOpacity
             style={[
               styles.payButton,
-              isProcessingPayment && { opacity: 0.8, backgroundColor: "#64748B" },
+              isProcessingPayment && {
+                opacity: 0.8,
+                backgroundColor: "#64748B",
+              },
             ]}
             onPress={handleLanjutkanPembayaran}
             activeOpacity={0.85}
             disabled={isProcessingPayment}
           >
             {isProcessingPayment ? (
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
-                <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.payButtonText}>Memproses Pembayaran...</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <ActivityIndicator
+                  size="small"
+                  color="#FFFFFF"
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={styles.payButtonText}>
+                  Memproses Pembayaran...
+                </Text>
               </View>
             ) : (
               <Text style={styles.payButtonText}>Lanjutkan Pembayaran</Text>
