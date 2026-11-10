@@ -58,6 +58,14 @@ export default function RootLayout() {
             headerShown: true,
           }}
         />
+        {/* Halaman Profil Pengguna */}
+        <Stack.Screen
+          name="profile"
+          options={{
+            title: "Profil Pengguna",
+            headerShown: true,
+          }}
+        />
       </Stack>
     </>
   );

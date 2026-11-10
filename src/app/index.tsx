@@ -1,43 +1,38 @@
+import { DesignSystem } from "@/constants/theme";
+import { fetchCuacaKota, fetchStasiunWilayah } from "@/services/api";
+import { Stasiun, WeatherData } from "@/types";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { DesignSystem } from "@/constants/theme";
 
 const { colors } = DesignSystem;
 
-// Definisi Interface Stasiun
-export interface Stasiun {
-  kode: string;
-  nama: string;
-  kota: string;
-}
+export type { Stasiun };
 
-// Data Pilihan Stasiun Populer Indonesia
-const DAFTAR_STASIUN: Stasiun[] = [
-  { kode: "PSE", nama: "Pasar Senen", kota: "Jakarta" },
-  { kode: "GMR", nama: "Gambir", kota: "Jakarta" },
-  { kode: "SGU", nama: "Surabaya Gubeng", kota: "Surabaya" },
-  { kode: "SBI", nama: "Surabaya Pasarturi", kota: "Surabaya" },
-  { kode: "BD", nama: "Bandung", kota: "Bandung" },
-  { kode: "YK", nama: "Yogyakarta", kota: "Yogyakarta" },
-  { kode: "LPN", nama: "Lempuyangan", kota: "Yogyakarta" },
-  { kode: "SLO", nama: "Solo Balapan", kota: "Surakarta" },
-  { kode: "SMT", nama: "Semarang Tawang", kota: "Semarang" },
-  { kode: "ML", nama: "Malang", kota: "Malang" },
-  { kode: "CN", nama: "Cirebon", kota: "Cirebon" },
+// Data Fallback Pilihan Stasiun Jawa Timur
+const DAFTAR_STASIUN_DEFAULT: Stasiun[] = [
+  { kode: "SGU", nama: "Stasiun Surabaya Gubeng", kota: "Surabaya" },
+  { kode: "ML", nama: "Stasiun Malang", kota: "Malang" },
+  { kode: "SDA", nama: "Stasiun Sidoarjo", kota: "Sidoarjo" },
+  { kode: "JR", nama: "Stasiun Jember", kota: "Jember" },
+  { kode: "BW", nama: "Stasiun Banyuwangi", kota: "Banyuwangi" },
+  { kode: "MN", nama: "Stasiun Madiun", kota: "Madiun" },
+  { kode: "KD", nama: "Stasiun Kediri", kota: "Kediri" },
+  { kode: "BL", nama: "Stasiun Blitar", kota: "Blitar" },
+  { kode: "PS", nama: "Stasiun Pasuruan", kota: "Pasuruan" },
+  { kode: "PB", nama: "Stasiun Probolinggo", kota: "Probolinggo" },
 ];
 
 // Data Kereta Realistis
@@ -120,29 +115,70 @@ export default function HomeScreen() {
   };
 
   // Navigation tab state (Beranda, Tiket Saya, Bantuan, Akun)
-  const [activeTab, setActiveTab] = useState<"beranda" | "tiket" | "bantuan" | "akun">("beranda");
+  const [activeTab, setActiveTab] = useState<
+    "beranda" | "tiket" | "bantuan" | "akun"
+  >("beranda");
 
-  // Penerapan Hook useEffect: Inisialisasi tab dan listener pembaruan status
-  useEffect(() => {
-    if (params.tab && typeof params.tab === "string") {
-      if (["beranda", "tiket", "bantuan", "akun"].includes(params.tab)) {
-        setActiveTab(params.tab as any);
-      }
-    }
-  }, [params.tab]);
+  // State Data Stasiun dari External API Wilayah Jawa Timur (emsifa.github.io)
+  const [daftarStasiun, setDaftarStasiun] = useState<Stasiun[]>(
+    DAFTAR_STASIUN_DEFAULT,
+  );
+  const [loadingStasiun, setLoadingStasiun] = useState(false);
+
+  // State Data Cuaca dari OpenWeatherMap API
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   // Booking Form States
-  const [asal, setAsal] = useState<Stasiun>(DAFTAR_STASIUN[0]); // Default PSE
-  const [tujuan, setTujuan] = useState<Stasiun>(DAFTAR_STASIUN[2]); // Default SGU
+  const [asal, setAsal] = useState<Stasiun>(DAFTAR_STASIUN_DEFAULT[0]); // Default Surabaya
+  const [tujuan, setTujuan] = useState<Stasiun>(DAFTAR_STASIUN_DEFAULT[1]); // Default Malang
   const [tanggalPergi, setTanggalPergi] = useState("Rab, 21 Okt 2026");
   const [isPulangPergi, setIsPulangPergi] = useState(false);
   const [tanggalPulang, setTanggalPulang] = useState("Kam, 22 Okt 2026");
-  const [jumlahPenumpang, setJumlahPenumpang] = useState(1);
+  const [jumlahPenumpang, setJumlahPenumpang] = useState<number>(1);
   const [kelasDipilih, setKelasDipilih] = useState("Semua");
 
   // Search results state
   const [hasSearched, setHasSearched] = useState(false);
   const [searching, setSearching] = useState(false);
+
+  // Mengambil data kabupaten/kota Jawa Timur dari External API menggunakan useEffect
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingStasiun(true);
+
+    fetchStasiunWilayah()
+      .then((data: Stasiun[]) => {
+        if (isMounted && data.length > 0) {
+          setDaftarStasiun(data);
+          const defaultOrigin =
+            data.find((s) => s.kota.toLowerCase().includes("surabaya")) ||
+            data[0];
+          const defaultDest =
+            data.find((s) => s.kota.toLowerCase().includes("malang")) ||
+            data[1] ||
+            data[0];
+
+          setAsal(defaultOrigin);
+          setTujuan(defaultDest);
+        }
+      })
+      .catch((error: Error) => {
+        console.warn(
+          "Gagal memuat API Wilayah, fallback aktif:",
+          error.message,
+        );
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoadingStasiun(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Modals state
   const [stationModalVisible, setStationModalVisible] = useState(false);
@@ -150,7 +186,9 @@ export default function HomeScreen() {
   const [stationSearchText, setStationSearchText] = useState("");
   const [selectedCityFilter, setSelectedCityFilter] = useState("Semua");
   const [dateModalVisible, setDateModalVisible] = useState(false);
-  const [dateModalType, setDateModalType] = useState<"pergi" | "pulang">("pergi");
+  const [dateModalType, setDateModalType] = useState<"pergi" | "pulang">(
+    "pergi",
+  );
 
   // Notification state
   const [hasNotification, setHasNotification] = useState(true);
@@ -179,20 +217,21 @@ export default function HomeScreen() {
     setTujuan(temp);
   };
 
-  // Filter Stasiun di Modal
+  // Filter Stasiun di Modal berdasarkan data API Wilayah
   const filteredStations = useMemo(() => {
-    return DAFTAR_STASIUN.filter((stasiun) => {
+    return daftarStasiun.filter((stasiun) => {
       const matchSearch =
         stasiun.nama.toLowerCase().includes(stationSearchText.toLowerCase()) ||
         stasiun.kode.toLowerCase().includes(stationSearchText.toLowerCase()) ||
         stasiun.kota.toLowerCase().includes(stationSearchText.toLowerCase());
 
       const matchCity =
-        selectedCityFilter === "Semua" || stasiun.kota.toLowerCase() === selectedCityFilter.toLowerCase();
+        selectedCityFilter === "Semua" ||
+        stasiun.kota.toLowerCase().includes(selectedCityFilter.toLowerCase());
 
       return matchSearch && matchCity;
     });
-  }, [stationSearchText, selectedCityFilter]);
+  }, [daftarStasiun, stationSearchText, selectedCityFilter]);
 
   // Open modal stasiun
   const handleOpenStationModal = (type: "asal" | "tujuan") => {
@@ -212,7 +251,7 @@ export default function HomeScreen() {
     setStationModalVisible(false);
   };
 
-  // Trigger Pencarian Tiket Kereta
+  // Trigger Pencarian Tiket Kereta & Fetch Cuaca dari OpenWeatherMap API
   const handleCariTiket = () => {
     if (asal.kode === tujuan.kode) {
       alert("Stasiun asal dan tujuan tidak boleh sama!");
@@ -220,13 +259,24 @@ export default function HomeScreen() {
     }
     setSearching(true);
     setHasSearched(true);
-    setTimeout(() => {
-      setSearching(false);
-    }, 400);
+    setWeatherLoading(true);
+
+    // Integrasi OpenWeatherMap API untuk kota tujuan (.then, .catch, .finally)
+    fetchCuacaKota(tujuan.kota)
+      .then((dataCuaca: WeatherData) => {
+        setWeatherData(dataCuaca);
+      })
+      .catch((error: Error) => {
+        console.warn("Gagal memuat cuaca tujuan:", error.message);
+      })
+      .finally(() => {
+        setWeatherLoading(false);
+        setSearching(false);
+      });
   };
 
   // Navigasi ke Detail
-  const handlePesanTiket = (item: typeof DATA_KERETA[0]) => {
+  const handlePesanTiket = (item: (typeof DATA_KERETA)[0]) => {
     router.push({
       pathname: "/detail",
       params: {
@@ -246,7 +296,9 @@ export default function HomeScreen() {
   // Filter Kereta sesuai Kelas yang Dipilih
   const displayTrains = useMemo(() => {
     if (kelasDipilih === "Semua") return DATA_KERETA;
-    return DATA_KERETA.filter((k) => k.kelas.toLowerCase() === kelasDipilih.toLowerCase());
+    return DATA_KERETA.filter(
+      (k) => k.kelas.toLowerCase() === kelasDipilih.toLowerCase(),
+    );
   }, [kelasDipilih]);
 
   // Quick date options
@@ -263,7 +315,15 @@ export default function HomeScreen() {
       {/* Container utama dengan constraint lebar untuk desktop / mobile */}
       <View style={[styles.responsiveContainer, { backgroundColor: theme.bg }]}>
         {/* NAVBAR */}
-        <View style={[styles.navbar, { backgroundColor: theme.navBg, paddingTop: Math.max(insets.top, 14) + 6 }]}>
+        <View
+          style={[
+            styles.navbar,
+            {
+              backgroundColor: theme.navBg,
+              paddingTop: Math.max(insets.top, 14) + 6,
+            },
+          ]}
+        >
           <View style={styles.navBrand}>
             <View>
               <View style={styles.brandTitleRow}>
@@ -295,13 +355,17 @@ export default function HomeScreen() {
           {activeTab === "beranda" && (
             <>
               {/* HERO SECTION */}
-              <View style={[styles.heroSection, { backgroundColor: theme.navBg }]}>
+              <View
+                style={[styles.heroSection, { backgroundColor: theme.navBg }]}
+              >
                 <View style={styles.heroOverlayCircle1} />
                 <View style={styles.heroOverlayCircle2} />
 
                 <View style={styles.heroContent}>
                   <View style={styles.heroTag}>
-                    <Text style={styles.heroTagText}>⚡ PROMO TIKET RESMI KAI</Text>
+                    <Text style={styles.heroTagText}>
+                      ⚡ PROMO TIKET RESMI KAI
+                    </Text>
                   </View>
                   <Text style={styles.heroTitle}>Pesan Tiket Kereta</Text>
                   <Text style={styles.heroSubtitle}>
@@ -311,32 +375,76 @@ export default function HomeScreen() {
               </View>
 
               {/* FORM PEMESANAN */}
-              <View style={[styles.formCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.formCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 {/* Rute Stasiun: Asal & Tujuan + Swap Button */}
                 <View style={styles.routeContainer}>
                   {/* Origin Station */}
                   <TouchableOpacity
-                    style={[styles.stationTouchBox, styles.stationTouchBoxLeft, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
+                    style={[
+                      styles.stationTouchBox,
+                      styles.stationTouchBoxLeft,
+                      {
+                        backgroundColor: theme.inputBg,
+                        borderColor: theme.border,
+                      },
+                    ]}
                     onPress={() => handleOpenStationModal("asal")}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Pilih Stasiun Asal"
                   >
                     <View style={styles.stationHeaderRow}>
-                      <View style={[styles.stationIndicator, { backgroundColor: colors.primary }]} />
-                      <Text style={[styles.stationLabel, { color: theme.textSecondary }]}>Stasiun Asal</Text>
+                      <View
+                        style={[
+                          styles.stationIndicator,
+                          { backgroundColor: colors.primary },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.stationLabel,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Stasiun Asal
+                      </Text>
                     </View>
-                    <Text style={[styles.stationCode, { color: theme.textPrimary }]}>{asal.kode}</Text>
-                    <Text style={[styles.stationName, { color: theme.textPrimary }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.stationCode, { color: theme.textPrimary }]}
+                    >
+                      {asal.kode}
+                    </Text>
+                    <Text
+                      style={[styles.stationName, { color: theme.textPrimary }]}
+                      numberOfLines={1}
+                    >
                       {asal.nama}
                     </Text>
-                    <Text style={[styles.stationCity, { color: theme.textSecondary }]}>{asal.kota}</Text>
+                    <Text
+                      style={[
+                        styles.stationCity,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {asal.kota}
+                    </Text>
                   </TouchableOpacity>
 
                   {/* Tombol Swap Tengah */}
                   <View style={styles.swapButtonWrapper}>
                     <TouchableOpacity
-                      style={[styles.swapButton, { backgroundColor: theme.card, borderColor: theme.border }]}
+                      style={[
+                        styles.swapButton,
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                        },
+                      ]}
                       onPress={handleSwapStations}
                       activeOpacity={0.8}
                       accessibilityRole="button"
@@ -348,33 +456,84 @@ export default function HomeScreen() {
 
                   {/* Destination Station */}
                   <TouchableOpacity
-                    style={[styles.stationTouchBox, styles.stationTouchBoxRight, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
+                    style={[
+                      styles.stationTouchBox,
+                      styles.stationTouchBoxRight,
+                      {
+                        backgroundColor: theme.inputBg,
+                        borderColor: theme.border,
+                      },
+                    ]}
                     onPress={() => handleOpenStationModal("tujuan")}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Pilih Stasiun Tujuan"
                   >
                     <View style={styles.stationHeaderRow}>
-                      <View style={[styles.stationIndicator, { backgroundColor: colors.activeOrange }]} />
-                      <Text style={[styles.stationLabel, { color: theme.textSecondary }]}>Stasiun Tujuan</Text>
+                      <View
+                        style={[
+                          styles.stationIndicator,
+                          { backgroundColor: colors.activeOrange },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.stationLabel,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Stasiun Tujuan
+                      </Text>
                     </View>
-                    <Text style={[styles.stationCode, { color: theme.textPrimary }]}>{tujuan.kode}</Text>
-                    <Text style={[styles.stationName, { color: theme.textPrimary }]} numberOfLines={1}>
+                    <Text
+                      style={[styles.stationCode, { color: theme.textPrimary }]}
+                    >
+                      {tujuan.kode}
+                    </Text>
+                    <Text
+                      style={[styles.stationName, { color: theme.textPrimary }]}
+                      numberOfLines={1}
+                    >
                       {tujuan.nama}
                     </Text>
-                    <Text style={[styles.stationCity, { color: theme.textSecondary }]}>{tujuan.kota}</Text>
+                    <Text
+                      style={[
+                        styles.stationCity,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {tujuan.kota}
+                    </Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={[styles.formDivider, { backgroundColor: theme.border }]} />
+                <View
+                  style={[
+                    styles.formDivider,
+                    { backgroundColor: theme.border },
+                  ]}
+                />
 
                 {/* Tanggal Pergi & Toggle Pulang-Pergi */}
                 <View style={styles.dateSection}>
                   <View style={styles.dateHeaderRow}>
                     <View style={styles.dateColumnLeft}>
-                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Tanggal Pergi</Text>
+                      <Text
+                        style={[
+                          styles.fieldLabel,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
+                        Tanggal Pergi
+                      </Text>
                       <TouchableOpacity
-                        style={[styles.datePickerButton, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
+                        style={[
+                          styles.datePickerButton,
+                          {
+                            backgroundColor: theme.inputBg,
+                            borderColor: theme.border,
+                          },
+                        ]}
                         onPress={() => {
                           setDateModalType("pergi");
                           setDateModalVisible(true);
@@ -384,22 +543,47 @@ export default function HomeScreen() {
                         accessibilityLabel="Ubah Tanggal Pergi"
                       >
                         <Text style={styles.calendarIcon}>📅</Text>
-                        <Text style={[styles.dateValueText, { color: theme.textPrimary }]}>{tanggalPergi}</Text>
+                        <Text
+                          style={[
+                            styles.dateValueText,
+                            { color: theme.textPrimary },
+                          ]}
+                        >
+                          {tanggalPergi}
+                        </Text>
                       </TouchableOpacity>
                     </View>
 
                     {/* Toggle Pulang-Pergi */}
                     <View style={styles.roundTripToggleWrapper}>
-                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Pulang-Pergi?</Text>
+                      <Text
+                        style={[
+                          styles.fieldLabel,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
+                        Pulang-Pergi?
+                      </Text>
                       <View style={styles.switchRow}>
                         <Switch
                           value={isPulangPergi}
                           onValueChange={(val) => setIsPulangPergi(val)}
-                          trackColor={{ false: theme.border, true: colors.lightBlue }}
-                          thumbColor={isPulangPergi ? colors.primary : "#FFFFFF"}
+                          trackColor={{
+                            false: theme.border,
+                            true: colors.lightBlue,
+                          }}
+                          thumbColor={
+                            isPulangPergi ? colors.primary : "#FFFFFF"
+                          }
                           accessibilityLabel="Toggle Pulang-Pergi"
                         />
-                        <Text style={[styles.switchLabel, { color: theme.textSecondary }, isPulangPergi && styles.switchLabelActive]}>
+                        <Text
+                          style={[
+                            styles.switchLabel,
+                            { color: theme.textSecondary },
+                            isPulangPergi && styles.switchLabelActive,
+                          ]}
+                        >
                           {isPulangPergi ? "Ya" : "Tidak"}
                         </Text>
                       </View>
@@ -409,9 +593,22 @@ export default function HomeScreen() {
                   {/* Tanggal Pulang */}
                   {isPulangPergi && (
                     <View style={styles.returnDateRow}>
-                      <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Tanggal Pulang</Text>
+                      <Text
+                        style={[
+                          styles.fieldLabel,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
+                        Tanggal Pulang
+                      </Text>
                       <TouchableOpacity
-                        style={[styles.datePickerButton, { backgroundColor: theme.inputBg, borderColor: theme.border }]}
+                        style={[
+                          styles.datePickerButton,
+                          {
+                            backgroundColor: theme.inputBg,
+                            borderColor: theme.border,
+                          },
+                        ]}
                         onPress={() => {
                           setDateModalType("pulang");
                           setDateModalVisible(true);
@@ -421,30 +618,66 @@ export default function HomeScreen() {
                         accessibilityLabel="Ubah Tanggal Pulang"
                       >
                         <Text style={styles.calendarIcon}>📅</Text>
-                        <Text style={[styles.dateValueText, { color: theme.textPrimary }]}>{tanggalPulang}</Text>
+                        <Text
+                          style={[
+                            styles.dateValueText,
+                            { color: theme.textPrimary },
+                          ]}
+                        >
+                          {tanggalPulang}
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )}
                 </View>
 
-                <View style={[styles.formDivider, { backgroundColor: theme.border }]} />
+                <View
+                  style={[
+                    styles.formDivider,
+                    { backgroundColor: theme.border },
+                  ]}
+                />
 
                 {/* Counter Jumlah Penumpang */}
                 <View style={styles.passengerSection}>
                   <View>
-                    <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Jumlah Penumpang</Text>
-                    <Text style={[styles.passengerSubText, { color: theme.textSecondary }]}>Usia 3 tahun ke atas</Text>
+                    <Text
+                      style={[styles.fieldLabel, { color: theme.textPrimary }]}
+                    >
+                      Jumlah Penumpang
+                    </Text>
+                    <Text
+                      style={[
+                        styles.passengerSubText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Usia 3 tahun ke atas
+                    </Text>
                   </View>
 
-                  <View style={[styles.counterRow, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                  <View
+                    style={[
+                      styles.counterRow,
+                      {
+                        backgroundColor: theme.inputBg,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
                     <TouchableOpacity
                       style={[
                         styles.counterBtn,
-                        { backgroundColor: theme.card, borderColor: theme.border },
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                        },
                         jumlahPenumpang <= 1 && styles.counterBtnDisabled,
                       ]}
                       disabled={jumlahPenumpang <= 1}
-                      onPress={() => setJumlahPenumpang((prev) => Math.max(1, prev - 1))}
+                      onPress={() =>
+                        setJumlahPenumpang((prev) => Math.max(1, prev - 1))
+                      }
                       accessibilityRole="button"
                       accessibilityLabel="Kurangi Jumlah Penumpang"
                     >
@@ -459,18 +692,37 @@ export default function HomeScreen() {
                     </TouchableOpacity>
 
                     <View style={styles.counterDisplay}>
-                      <Text style={[styles.counterNumberText, { color: theme.textPrimary }]}>{jumlahPenumpang}</Text>
-                      <Text style={[styles.counterLabelText, { color: theme.textSecondary }]}>Orang</Text>
+                      <Text
+                        style={[
+                          styles.counterNumberText,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
+                        {jumlahPenumpang}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.counterLabelText,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Orang
+                      </Text>
                     </View>
 
                     <TouchableOpacity
                       style={[
                         styles.counterBtn,
-                        { backgroundColor: theme.card, borderColor: theme.border },
+                        {
+                          backgroundColor: theme.card,
+                          borderColor: theme.border,
+                        },
                         jumlahPenumpang >= 8 && styles.counterBtnDisabled,
                       ]}
                       disabled={jumlahPenumpang >= 8}
-                      onPress={() => setJumlahPenumpang((prev) => Math.min(8, prev + 1))}
+                      onPress={() =>
+                        setJumlahPenumpang((prev) => Math.min(8, prev + 1))
+                      }
                       accessibilityRole="button"
                       accessibilityLabel="Tambah Jumlah Penumpang"
                     >
@@ -486,11 +738,20 @@ export default function HomeScreen() {
                   </View>
                 </View>
 
-                <View style={[styles.formDivider, { backgroundColor: theme.border }]} />
+                <View
+                  style={[
+                    styles.formDivider,
+                    { backgroundColor: theme.border },
+                  ]}
+                />
 
                 {/* Selector Kelas Kereta */}
                 <View style={styles.classSection}>
-                  <Text style={[styles.fieldLabel, { color: theme.textPrimary }]}>Kelas Kereta</Text>
+                  <Text
+                    style={[styles.fieldLabel, { color: theme.textPrimary }]}
+                  >
+                    Kelas Kereta
+                  </Text>
                   <View style={styles.classChipsRow}>
                     {KELAS_OPTIONS.map((k) => {
                       const isSelected = kelasDipilih === k;
@@ -499,7 +760,10 @@ export default function HomeScreen() {
                           key={k}
                           style={[
                             styles.classChip,
-                            { backgroundColor: theme.inputBg, borderColor: theme.border },
+                            {
+                              backgroundColor: theme.inputBg,
+                              borderColor: theme.border,
+                            },
                             isSelected && styles.classChipSelected,
                           ]}
                           onPress={() => setKelasDipilih(k)}
@@ -537,40 +801,211 @@ export default function HomeScreen() {
 
               {/* DAFTAR JADWAL KERETA TERSEDIA */}
               <View style={styles.resultsContainer}>
+                {/* WIDGET PRAKIRAAN CUACA DESTINASI (OPENWEATHERMAP API) */}
+                {!searching && (weatherLoading || weatherData) && (
+                  <View
+                    style={[
+                      styles.weatherCard,
+                      {
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
+                    <View style={styles.weatherHeaderRow}>
+                      <View style={styles.weatherTitleBadge}>
+                        <Text
+                          style={[
+                            styles.weatherBadgeText,
+                            { color: colors.primary },
+                          ]}
+                        >
+                          ⛅ INFO CUACA DESTINASI
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.weatherCityText,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        Tujuan: {tujuan.kota}
+                      </Text>
+                    </View>
+
+                    {weatherLoading ? (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.primary}
+                          style={{ marginRight: 10 }}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 13,
+                            color: theme.textSecondary,
+                            fontWeight: "500",
+                          }}
+                        >
+                          Menghubungkan ke OpenWeatherMap API...
+                        </Text>
+                      </View>
+                    ) : weatherData ? (
+                      <View style={{ marginTop: 8 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginBottom: 6,
+                          }}
+                        >
+                          <Text style={{ fontSize: 36, marginRight: 12 }}>
+                            {weatherData.icon || "☀️"}
+                          </Text>
+                          <View>
+                            <Text
+                              style={{
+                                fontSize: 26,
+                                fontWeight: "800",
+                                color: theme.textPrimary,
+                              }}
+                            >
+                              {weatherData.temp}°C
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                fontWeight: "700",
+                                color: colors.primary,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              {weatherData.kondisi}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: theme.textSecondary,
+                            marginTop: 4,
+                          }}
+                        >
+                          {weatherData.deskripsi}{" "}
+                          {weatherData.kelembaban !== undefined
+                            ? `• Kelembaban: ${weatherData.kelembaban}%`
+                            : ""}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
                 <View style={styles.resultsHeaderRow}>
                   <View>
-                    <Text style={[styles.resultsTitle, { color: theme.textPrimary }]}>Jadwal Kereta Tersedia</Text>
-                    <Text style={[styles.resultsSubtitle, { color: theme.textSecondary }]}>
+                    <Text
+                      style={[
+                        styles.resultsTitle,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      Jadwal Kereta Tersedia
+                    </Text>
+                    <Text
+                      style={[
+                        styles.resultsSubtitle,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
                       {asal.kode} ➔ {tujuan.kode} • {tanggalPergi}
                     </Text>
                   </View>
                   <View style={styles.trainCountBadge}>
-                    <Text style={styles.trainCountText}>{displayTrains.length} Kereta</Text>
+                    <Text style={styles.trainCountText}>
+                      {displayTrains.length} Kereta
+                    </Text>
                   </View>
                 </View>
 
                 {searching ? (
-                  <View style={[styles.loadingContainer, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View
+                    style={[
+                      styles.loadingContainer,
+                      {
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
                     <ActivityIndicator size="large" color={colors.primary} />
-                    <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Mencari ketersediaan kursi...</Text>
+                    <Text
+                      style={[
+                        styles.loadingText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Mencari ketersediaan kursi...
+                    </Text>
                   </View>
                 ) : displayTrains.length === 0 ? (
-                  <View style={[styles.emptyStateBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                  <View
+                    style={[
+                      styles.emptyStateBox,
+                      {
+                        backgroundColor: theme.card,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                  >
                     <Text style={styles.emptyStateEmoji}>🚆</Text>
-                    <Text style={[styles.emptyStateTitle, { color: theme.textPrimary }]}>Tidak Ada Kereta Ditemukan</Text>
-                    <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
-                      Coba ganti filter kelas atau stasiun untuk melihat jadwal lainnya.
+                    <Text
+                      style={[
+                        styles.emptyStateTitle,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      Tidak Ada Kereta Ditemukan
+                    </Text>
+                    <Text
+                      style={[
+                        styles.emptyStateText,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Coba ganti filter kelas atau stasiun untuk melihat jadwal
+                      lainnya.
                     </Text>
                   </View>
                 ) : (
                   displayTrains.map((item) => {
                     const waktuTiba = hitungWaktuTiba(item.waktu, item.durasi);
                     return (
-                      <View key={item.id} style={[styles.trainCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                      <View
+                        key={item.id}
+                        style={[
+                          styles.trainCard,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: theme.border,
+                          },
+                        ]}
+                      >
                         {/* Header Kartu Kereta */}
                         <View style={styles.trainCardHeader}>
                           <View style={styles.trainNameGroup}>
-                            <Text style={[styles.trainNameText, { color: theme.textPrimary }]}>{item.nama}</Text>
+                            <Text
+                              style={[
+                                styles.trainNameText,
+                                { color: theme.textPrimary },
+                              ]}
+                            >
+                              {item.nama}
+                            </Text>
                             <View style={styles.seatsBadge}>
                               <Text style={styles.seatsBadgeText}>
                                 Sisa {item.sisaKursi} kursi
@@ -583,8 +1018,8 @@ export default function HomeScreen() {
                               item.kelas === "Eksekutif"
                                 ? styles.classBadgeEksekutif
                                 : item.kelas === "Bisnis"
-                                ? styles.classBadgeBisnis
-                                : styles.classBadgeEkonomi,
+                                  ? styles.classBadgeBisnis
+                                  : styles.classBadgeEkonomi,
                             ]}
                           >
                             <Text
@@ -593,8 +1028,8 @@ export default function HomeScreen() {
                                 item.kelas === "Eksekutif"
                                   ? styles.classBadgeTextEksekutif
                                   : item.kelas === "Bisnis"
-                                  ? styles.classBadgeTextBisnis
-                                  : styles.classBadgeTextEkonomi,
+                                    ? styles.classBadgeTextBisnis
+                                    : styles.classBadgeTextEkonomi,
                               ]}
                             >
                               {item.kelas}
@@ -605,34 +1040,96 @@ export default function HomeScreen() {
                         {/* Jadwal Perjalanan */}
                         <View style={styles.journeyRow}>
                           <View style={styles.journeyPoint}>
-                            <Text style={[styles.journeyTime, { color: theme.textPrimary }]}>{item.waktu}</Text>
-                            <Text style={[styles.journeyStation, { color: theme.textSecondary }]}>{asal.kode}</Text>
+                            <Text
+                              style={[
+                                styles.journeyTime,
+                                { color: theme.textPrimary },
+                              ]}
+                            >
+                              {item.waktu}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.journeyStation,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {asal.kode}
+                            </Text>
                           </View>
 
                           <View style={styles.journeyLineContainer}>
-                            <Text style={[styles.durationText, { color: theme.textSecondary }]}>{item.durasi} jam</Text>
+                            <Text
+                              style={[
+                                styles.durationText,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {item.durasi} jam
+                            </Text>
                             <View style={styles.journeyTrack}>
                               <View style={styles.journeyTrackDot} />
-                              <View style={[styles.journeyTrackLine, { backgroundColor: theme.border }]} />
+                              <View
+                                style={[
+                                  styles.journeyTrackLine,
+                                  { backgroundColor: theme.border },
+                                ]}
+                              />
                               <Text style={styles.journeyTrackTrain}>🚆</Text>
-                              <View style={[styles.journeyTrackLine, { backgroundColor: theme.border }]} />
+                              <View
+                                style={[
+                                  styles.journeyTrackLine,
+                                  { backgroundColor: theme.border },
+                                ]}
+                              />
                               <View style={styles.journeyTrackDot} />
                             </View>
                             <Text style={styles.directText}>Langsung</Text>
                           </View>
 
-                          <View style={[styles.journeyPoint, { alignItems: "flex-end" }]}>
-                            <Text style={[styles.journeyTime, { color: theme.textPrimary }]}>{waktuTiba}</Text>
-                            <Text style={[styles.journeyStation, { color: theme.textSecondary }]}>{tujuan.kode}</Text>
+                          <View
+                            style={[
+                              styles.journeyPoint,
+                              { alignItems: "flex-end" },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.journeyTime,
+                                { color: theme.textPrimary },
+                              ]}
+                            >
+                              {waktuTiba}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.journeyStation,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {tujuan.kode}
+                            </Text>
                           </View>
                         </View>
 
-                        <View style={[styles.cardDivider, { backgroundColor: theme.border }]} />
+                        <View
+                          style={[
+                            styles.cardDivider,
+                            { backgroundColor: theme.border },
+                          ]}
+                        />
 
                         {/* Footer Kartu Kereta */}
                         <View style={styles.trainCardFooter}>
                           <View>
-                            <Text style={[styles.pricePerPersonLabel, { color: theme.textSecondary }]}>Harga per orang</Text>
+                            <Text
+                              style={[
+                                styles.pricePerPersonLabel,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              Harga per orang
+                            </Text>
                             <Text style={styles.trainPriceText}>
                               {formatRupiah(item.harga)}
                             </Text>
@@ -645,7 +1142,9 @@ export default function HomeScreen() {
                             accessibilityRole="button"
                             accessibilityLabel={`Pesan tiket ${item.nama}`}
                           >
-                            <Text style={styles.selectTrainBtnText}>Pesan Tiket</Text>
+                            <Text style={styles.selectTrainBtnText}>
+                              Pesan Tiket
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -660,20 +1159,48 @@ export default function HomeScreen() {
           {activeTab === "tiket" && (
             <View style={styles.tabContentContainer}>
               <View style={styles.tabContentHeader}>
-                <Text style={[styles.tabContentTitle, { color: theme.textPrimary }]}>Tiket Saya</Text>
-                <Text style={[styles.tabContentSub, { color: theme.textSecondary }]}>Daftar perjalanan & e-ticket Anda</Text>
+                <Text
+                  style={[styles.tabContentTitle, { color: theme.textPrimary }]}
+                >
+                  Tiket Saya
+                </Text>
+                <Text
+                  style={[styles.tabContentSub, { color: theme.textSecondary }]}
+                >
+                  Daftar perjalanan & e-ticket Anda
+                </Text>
               </View>
-              <View style={[styles.ticketEmptyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.ticketEmptyCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 <Text style={styles.ticketEmptyIcon}>🎟️</Text>
-                <Text style={[styles.ticketEmptyTitle, { color: theme.textPrimary }]}>Belum Ada Tiket Aktif</Text>
-                <Text style={[styles.ticketEmptyText, { color: theme.textSecondary }]}>
-                  Perjalanan yang Anda pesan akan langsung tampil di sini dengan QR Code boarding pass.
+                <Text
+                  style={[
+                    styles.ticketEmptyTitle,
+                    { color: theme.textPrimary },
+                  ]}
+                >
+                  Belum Ada Tiket Aktif
+                </Text>
+                <Text
+                  style={[
+                    styles.ticketEmptyText,
+                    { color: theme.textSecondary },
+                  ]}
+                >
+                  Perjalanan yang Anda pesan akan langsung tampil di sini dengan
+                  QR Code boarding pass.
                 </Text>
                 <TouchableOpacity
                   style={styles.tabActionButton}
                   onPress={() => setActiveTab("beranda")}
                 >
-                  <Text style={styles.tabActionButtonText}>Cari Tiket Sekarang</Text>
+                  <Text style={styles.tabActionButtonText}>
+                    Cari Tiket Sekarang
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -683,30 +1210,95 @@ export default function HomeScreen() {
           {activeTab === "bantuan" && (
             <View style={styles.tabContentContainer}>
               <View style={styles.tabContentHeader}>
-                <Text style={[styles.tabContentTitle, { color: theme.textPrimary }]}>Pusat Bantuan</Text>
-                <Text style={[styles.tabContentSub, { color: theme.textSecondary }]}>Layanan 24/7 Keretaku Customer Care</Text>
+                <Text
+                  style={[styles.tabContentTitle, { color: theme.textPrimary }]}
+                >
+                  Pusat Bantuan
+                </Text>
+                <Text
+                  style={[styles.tabContentSub, { color: theme.textSecondary }]}
+                >
+                  Layanan 24/7 Keretaku Customer Care
+                </Text>
               </View>
 
               <View style={styles.helpCardsList}>
-                <View style={[styles.helpCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.helpCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
                   <Text style={styles.helpCardIcon}>📞</Text>
                   <View style={styles.helpCardContent}>
-                    <Text style={[styles.helpCardTitle, { color: theme.textPrimary }]}>Contact Center 121</Text>
-                    <Text style={[styles.helpCardDesc, { color: theme.textSecondary }]}>Bebas pulsa untuk keluhan dan info jadwal</Text>
+                    <Text
+                      style={[
+                        styles.helpCardTitle,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      Contact Center 121
+                    </Text>
+                    <Text
+                      style={[
+                        styles.helpCardDesc,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Bebas pulsa untuk keluhan dan info jadwal
+                    </Text>
                   </View>
                 </View>
-                <View style={[styles.helpCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.helpCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
                   <Text style={styles.helpCardIcon}>💬</Text>
                   <View style={styles.helpCardContent}>
-                    <Text style={[styles.helpCardTitle, { color: theme.textPrimary }]}>Live Chat WhatsApp</Text>
-                    <Text style={[styles.helpCardDesc, { color: theme.textSecondary }]}>Respon cepat admin 24 jam</Text>
+                    <Text
+                      style={[
+                        styles.helpCardTitle,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      Live Chat WhatsApp
+                    </Text>
+                    <Text
+                      style={[
+                        styles.helpCardDesc,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Respon cepat admin 24 jam
+                    </Text>
                   </View>
                 </View>
-                <View style={[styles.helpCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+                <View
+                  style={[
+                    styles.helpCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
                   <Text style={styles.helpCardIcon}>❓</Text>
                   <View style={styles.helpCardContent}>
-                    <Text style={[styles.helpCardTitle, { color: theme.textPrimary }]}>Panduan Reschedule & Refund</Text>
-                    <Text style={[styles.helpCardDesc, { color: theme.textSecondary }]}>Tata cara pembatalan dan ubah jadwal</Text>
+                    <Text
+                      style={[
+                        styles.helpCardTitle,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      Panduan Reschedule & Refund
+                    </Text>
+                    <Text
+                      style={[
+                        styles.helpCardDesc,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      Tata cara pembatalan dan ubah jadwal
+                    </Text>
                   </View>
                 </View>
               </View>
@@ -717,34 +1309,84 @@ export default function HomeScreen() {
           {activeTab === "akun" && (
             <View style={styles.tabContentContainer}>
               <View style={styles.tabContentHeader}>
-                <Text style={[styles.tabContentTitle, { color: theme.textPrimary }]}>Profil Akun</Text>
-                <Text style={[styles.tabContentSub, { color: theme.textSecondary }]}>Kelola data penumpang & tampilan</Text>
+                <Text
+                  style={[styles.tabContentTitle, { color: theme.textPrimary }]}
+                >
+                  Profil Akun
+                </Text>
+                <Text
+                  style={[styles.tabContentSub, { color: theme.textSecondary }]}
+                >
+                  Kelola data penumpang & tampilan
+                </Text>
               </View>
 
-              <View style={[styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.profileCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
                 <View style={styles.avatarCircle}>
                   <Text style={styles.avatarInitials}>KT</Text>
                 </View>
                 <View style={styles.profileInfo}>
-                  <Text style={[styles.profileName, { color: theme.textPrimary }]}>Pengguna Keretaku</Text>
-                  <Text style={[styles.profileEmail, { color: theme.textSecondary }]}>penumpang@keretaku.id</Text>
+                  <Text
+                    style={[styles.profileName, { color: theme.textPrimary }]}
+                  >
+                    Pengguna Keretaku
+                  </Text>
+                  <Text
+                    style={[
+                      styles.profileEmail,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    penumpang@keretaku.id
+                  </Text>
                   <View style={styles.memberBadge}>
-                    <Text style={styles.memberBadgeText}>Member Terverifikasi</Text>
+                    <Text style={styles.memberBadgeText}>
+                      Member Terverifikasi
+                    </Text>
                   </View>
                 </View>
               </View>
 
               {/* TOGGLE SWITCH DARK MODE */}
-              <View style={[styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+              <View
+                style={[
+                  styles.profileCard,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    width: "100%",
+                  }}
+                >
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Text style={{ fontSize: 22, marginRight: 12 }}>{isDarkMode ? "🌙" : "☀️"}</Text>
+                    <Text style={{ fontSize: 22, marginRight: 12 }}>
+                      {isDarkMode ? "🌙" : "☀️"}
+                    </Text>
                     <View>
-                      <Text style={{ fontSize: 14, fontWeight: "700", color: theme.textPrimary }}>
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontWeight: "700",
+                          color: theme.textPrimary,
+                        }}
+                      >
                         Mode Gelap (Dark Mode)
                       </Text>
-                      <Text style={{ fontSize: 11, color: theme.textSecondary }}>
-                        {isDarkMode ? "Tampilan gelap aktif" : "Tampilan terang aktif"}
+                      <Text
+                        style={{ fontSize: 11, color: theme.textSecondary }}
+                      >
+                        {isDarkMode
+                          ? "Tampilan gelap aktif"
+                          : "Tampilan terang aktif"}
                       </Text>
                     </View>
                   </View>
@@ -759,15 +1401,43 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              <View style={[styles.accountMenuWrapper, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                {["Daftar Penumpang Tersimpan", "Riwayat Transaksi", "Pengaturan Bahasa", "Tentang Aplikasi Keretaku"].map(
-                  (menu, i) => (
-                    <TouchableOpacity key={i} style={[styles.accountMenuItem, { borderBottomColor: theme.border }]}>
-                      <Text style={[styles.accountMenuText, { color: theme.textPrimary }]}>{menu}</Text>
-                      <Text style={[styles.accountMenuChevron, { color: theme.textSecondary }]}>›</Text>
-                    </TouchableOpacity>
-                  )
-                )}
+              <View
+                style={[
+                  styles.accountMenuWrapper,
+                  { backgroundColor: theme.card, borderColor: theme.border },
+                ]}
+              >
+                {[
+                  "Daftar Penumpang Tersimpan",
+                  "Riwayat Transaksi",
+                  "Pengaturan Bahasa",
+                  "Tentang Aplikasi Keretaku",
+                ].map((menu, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[
+                      styles.accountMenuItem,
+                      { borderBottomColor: theme.border },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.accountMenuText,
+                        { color: theme.textPrimary },
+                      ]}
+                    >
+                      {menu}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.accountMenuChevron,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      ›
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
           )}
@@ -777,7 +1447,11 @@ export default function HomeScreen() {
         <View
           style={[
             styles.bottomNavContainer,
-            { backgroundColor: theme.card, borderTopColor: theme.border, paddingBottom: Math.max(insets.bottom, 10) },
+            {
+              backgroundColor: theme.card,
+              borderTopColor: theme.border,
+              paddingBottom: Math.max(insets.bottom, 10),
+            },
           ]}
         >
           {/* Tab 1: Beranda */}
@@ -798,7 +1472,9 @@ export default function HomeScreen() {
               >
                 🏠
               </Text>
-              {activeTab === "beranda" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "beranda" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -829,7 +1505,9 @@ export default function HomeScreen() {
               >
                 🎫
               </Text>
-              {activeTab === "tiket" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "tiket" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -860,7 +1538,9 @@ export default function HomeScreen() {
               >
                 💬
               </Text>
-              {activeTab === "bantuan" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "bantuan" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -891,7 +1571,9 @@ export default function HomeScreen() {
               >
                 👤
               </Text>
-              {activeTab === "akun" && <View style={styles.activeTabIndicatorDot} />}
+              {activeTab === "akun" && (
+                <View style={styles.activeTabIndicatorDot} />
+              )}
             </View>
             <Text
               style={[
@@ -917,28 +1599,56 @@ export default function HomeScreen() {
               {/* Modal Header */}
               <View style={styles.modalHeaderRow}>
                 <View>
-                  <Text style={[styles.modalTitleText, { color: theme.textPrimary }]}>
+                  <Text
+                    style={[
+                      styles.modalTitleText,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
                     Pilih Stasiun {pickingFor === "asal" ? "Asal" : "Tujuan"}
                   </Text>
-                  <Text style={[styles.modalSubtitleText, { color: theme.textSecondary }]}>
+                  <Text
+                    style={[
+                      styles.modalSubtitleText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
                     Cari berdasarkan nama stasiun, kota, atau kode
                   </Text>
                 </View>
                 <TouchableOpacity
-                  style={[styles.modalCloseCircle, { backgroundColor: theme.inputBg }]}
+                  style={[
+                    styles.modalCloseCircle,
+                    { backgroundColor: theme.inputBg },
+                  ]}
                   onPress={() => setStationModalVisible(false)}
                   accessibilityRole="button"
                   accessibilityLabel="Tutup Modal Stasiun"
                 >
-                  <Text style={[styles.modalCloseText, { color: theme.textPrimary }]}>✕</Text>
+                  <Text
+                    style={[
+                      styles.modalCloseText,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
+                    ✕
+                  </Text>
                 </TouchableOpacity>
               </View>
 
               {/* Input Pencarian Stasiun */}
-              <View style={[styles.modalSearchBox, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+              <View
+                style={[
+                  styles.modalSearchBox,
+                  { backgroundColor: theme.inputBg, borderColor: theme.border },
+                ]}
+              >
                 <Text style={styles.modalSearchIcon}>🔍</Text>
                 <TextInput
-                  style={[styles.modalSearchInput, { color: theme.textPrimary }]}
+                  style={[
+                    styles.modalSearchInput,
+                    { color: theme.textPrimary },
+                  ]}
                   placeholder="Contoh: Pasar Senen, SGU, Bandung..."
                   placeholderTextColor={theme.textSecondary}
                   value={stationSearchText}
@@ -955,66 +1665,119 @@ export default function HomeScreen() {
                 style={styles.cityFilterScroll}
                 contentContainerStyle={styles.cityFilterContent}
               >
-                {["Semua", "Jakarta", "Surabaya", "Bandung", "Yogyakarta", "Malang"].map(
-                  (city) => (
-                    <TouchableOpacity
-                      key={city}
+                {[
+                  "Semua",
+                  "Surabaya",
+                  "Malang",
+                  "Sidoarjo",
+                  "Jember",
+                  "Banyuwangi",
+                  "Madiun",
+                  "Kediri",
+                ].map((city) => (
+                  <TouchableOpacity
+                    key={city}
+                    style={[
+                      styles.cityFilterChip,
+                      { backgroundColor: theme.inputBg },
+                      selectedCityFilter === city &&
+                        styles.cityFilterChipActive,
+                    ]}
+                    onPress={() => setSelectedCityFilter(city)}
+                  >
+                    <Text
                       style={[
-                        styles.cityFilterChip,
-                        { backgroundColor: theme.inputBg },
-                        selectedCityFilter === city && styles.cityFilterChipActive,
+                        styles.cityFilterChipText,
+                        { color: theme.textSecondary },
+                        selectedCityFilter === city &&
+                          styles.cityFilterChipTextActive,
                       ]}
-                      onPress={() => setSelectedCityFilter(city)}
                     >
-                      <Text
-                        style={[
-                          styles.cityFilterChipText,
-                          { color: theme.textSecondary },
-                          selectedCityFilter === city && styles.cityFilterChipTextActive,
-                        ]}
-                      >
-                        {city}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )}
+                      {city}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </ScrollView>
 
               {/* List Stasiun */}
-              <ScrollView style={styles.stationListScroll}>
-                {filteredStations.map((stasiun) => {
-                  const isCurrent =
-                    (pickingFor === "asal" && asal.kode === stasiun.kode) ||
-                    (pickingFor === "tujuan" && tujuan.kode === stasiun.kode);
-                  return (
-                    <TouchableOpacity
-                      key={stasiun.kode}
-                      style={[
-                        styles.stationListItem,
-                        { borderBottomColor: theme.border },
-                        isCurrent && styles.stationListItemCurrent,
-                      ]}
-                      onPress={() => handleSelectStation(stasiun)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.stationListItemLeft}>
-                        <View style={[styles.stationCodeBadge, { backgroundColor: theme.inputBg }]}>
-                          <Text style={styles.stationCodeBadgeText}>{stasiun.kode}</Text>
+              {loadingStasiun ? (
+                <View
+                  style={{
+                    padding: 24,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      color: theme.textSecondary,
+                    }}
+                  >
+                    Memuat stasiun Jawa Timur dari API Wilayah...
+                  </Text>
+                </View>
+              ) : (
+                <ScrollView style={styles.stationListScroll}>
+                  {filteredStations.map((stasiun) => {
+                    const isCurrent =
+                      (pickingFor === "asal" && asal.kode === stasiun.kode) ||
+                      (pickingFor === "tujuan" && tujuan.kode === stasiun.kode);
+                    return (
+                      <TouchableOpacity
+                        key={stasiun.kode}
+                        style={[
+                          styles.stationListItem,
+                          { borderBottomColor: theme.border },
+                          isCurrent && styles.stationListItemCurrent,
+                        ]}
+                        onPress={() => handleSelectStation(stasiun)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.stationListItemLeft}>
+                          <View
+                            style={[
+                              styles.stationCodeBadge,
+                              { backgroundColor: theme.inputBg },
+                            ]}
+                          >
+                            <Text style={styles.stationCodeBadgeText}>
+                              {stasiun.kode}
+                            </Text>
+                          </View>
+                          <View style={styles.stationNameInfo}>
+                            <Text
+                              style={[
+                                styles.stationItemName,
+                                { color: theme.textPrimary },
+                              ]}
+                            >
+                              {stasiun.nama}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.stationItemCity,
+                                { color: theme.textSecondary },
+                              ]}
+                            >
+                              {stasiun.kota}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={styles.stationNameInfo}>
-                          <Text style={[styles.stationItemName, { color: theme.textPrimary }]}>{stasiun.nama}</Text>
-                          <Text style={[styles.stationItemCity, { color: theme.textSecondary }]}>{stasiun.kota}</Text>
-                        </View>
-                      </View>
-                      {isCurrent && (
-                        <View style={styles.currentBadge}>
-                          <Text style={styles.currentBadgeText}>Terpilih</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                        {isCurrent && (
+                          <View style={styles.currentBadge}>
+                            <Text style={styles.currentBadgeText}>
+                              Terpilih
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </View>
           </View>
         </Modal>
@@ -1027,16 +1790,30 @@ export default function HomeScreen() {
           onRequestClose={() => setDateModalVisible(false)}
         >
           <View style={styles.modalBackdrop}>
-            <View style={[styles.dateModalCard, { backgroundColor: theme.card }]}>
+            <View
+              style={[styles.dateModalCard, { backgroundColor: theme.card }]}
+            >
               <View style={styles.modalHeaderRow}>
-                <Text style={[styles.modalTitleText, { color: theme.textPrimary }]}>
+                <Text
+                  style={[styles.modalTitleText, { color: theme.textPrimary }]}
+                >
                   Pilih Tanggal {dateModalType === "pergi" ? "Pergi" : "Pulang"}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.modalCloseCircle, { backgroundColor: theme.inputBg }]}
+                  style={[
+                    styles.modalCloseCircle,
+                    { backgroundColor: theme.inputBg },
+                  ]}
                   onPress={() => setDateModalVisible(false)}
                 >
-                  <Text style={[styles.modalCloseText, { color: theme.textPrimary }]}>✕</Text>
+                  <Text
+                    style={[
+                      styles.modalCloseText,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
+                    ✕
+                  </Text>
                 </TouchableOpacity>
               </View>
 
@@ -1044,7 +1821,10 @@ export default function HomeScreen() {
                 {dateOptions.map((opt, i) => (
                   <TouchableOpacity
                     key={i}
-                    style={[styles.dateOptionItem, { borderBottomColor: theme.border }]}
+                    style={[
+                      styles.dateOptionItem,
+                      { borderBottomColor: theme.border },
+                    ]}
                     onPress={() => {
                       if (dateModalType === "pergi") {
                         setTanggalPergi(opt.date);
@@ -1055,10 +1835,31 @@ export default function HomeScreen() {
                     }}
                   >
                     <View>
-                      <Text style={[styles.dateOptionLabel, { color: theme.textPrimary }]}>{opt.label}</Text>
-                      <Text style={[styles.dateOptionValue, { color: theme.textSecondary }]}>{opt.date}</Text>
+                      <Text
+                        style={[
+                          styles.dateOptionLabel,
+                          { color: theme.textPrimary },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dateOptionValue,
+                          { color: theme.textSecondary },
+                        ]}
+                      >
+                        {opt.date}
+                      </Text>
                     </View>
-                    <Text style={[styles.dateOptionArrow, { color: theme.textSecondary }]}>›</Text>
+                    <Text
+                      style={[
+                        styles.dateOptionArrow,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      ›
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -2027,5 +2828,84 @@ const styles = StyleSheet.create({
   },
   dateOptionArrow: {
     fontSize: 18,
+  },
+
+  // Weather Widget Styles
+  weatherCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 2,
+      },
+      web: {
+        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+      },
+    }),
+  },
+  weatherHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  weatherTitleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  weatherBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  weatherCityText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  weatherBodyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  weatherTempContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  weatherIcon: {
+    fontSize: 32,
+    marginRight: 10,
+  },
+  weatherTempText: {
+    fontSize: 28,
+    fontWeight: "800",
+  },
+  weatherConditionContainer: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  weatherConditionText: {
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "left",
+    flexWrap: "wrap",
+  },
+  weatherDescText: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  weatherHumidityText: {
+    fontSize: 11,
+    marginTop: 4,
+    fontWeight: "600",
+    textAlign: "left",
+    flexWrap: "wrap",
   },
 });

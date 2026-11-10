@@ -1,6 +1,8 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,6 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DesignSystem } from "@/constants/theme";
+import { prosesSimulasiPembayaran } from "@/services/api";
+import { PaymentRequest, PaymentResult } from "@/types";
 
 const { colors } = DesignSystem;
 
@@ -17,6 +21,8 @@ export default function DetailTiket() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const hargaPerTiket = Number(params.harga) || 0;
   const jumlahTiket = Number(params.jumlah) || 1;
@@ -34,7 +40,10 @@ export default function DetailTiket() {
     .replace("EKO-", "Ekonomi ")
     .replace("BIS-", "Bisnis ");
 
-  const defaultSeats = Array.from({ length: jumlahTiket }, (_, i) => `3${String.fromCharCode(65 + i)}`).join(", ");
+  const defaultSeats = Array.from(
+    { length: jumlahTiket },
+    (_, i) => `3${String.fromCharCode(65 + i)}`
+  ).join(", ");
   const kursiDipilih = (params.kursi as string) || defaultSeats;
   const daftarKursi = kursiDipilih.split(",").map((s) => s.trim());
   const isKursiManual = Boolean(params.kursi);
@@ -63,8 +72,50 @@ export default function DetailTiket() {
 
   const waktuTiba = hitungWaktuTiba(
     params.waktu as string,
-    Number(params.durasi),
+    Number(params.durasi)
   );
+
+  const handleLanjutkanPembayaran = () => {
+    if (isProcessingPayment) return;
+
+    setIsProcessingPayment(true);
+
+    const paymentRequest: PaymentRequest = {
+      namaKereta: (params.nama as string) || "Kereta Api",
+      totalHarga: totalHarga,
+      jumlahTiket: jumlahTiket,
+      asal: (params.asal as string) || "Stasiun Asal",
+      tujuan: (params.tujuan as string) || "Stasiun Tujuan",
+      gerbong: labelGerbong,
+      kursi: kursiDipilih,
+    };
+
+    prosesSimulasiPembayaran(paymentRequest)
+      .then((result: PaymentResult) => {
+        Alert.alert(
+          "Pembayaran Berhasil! 🎉",
+          `${result.message}\n\n` +
+            `ID Transaksi: ${result.transactionId}\n` +
+            `Waktu: ${result.timestamp}\n` +
+            `Total Bayar: ${formatRupiah(result.totalBayar)}\n` +
+            `Gerbong: ${labelGerbong}\n` +
+            `Nomor Kursi: ${kursiDipilih}\n\n` +
+            `E-Tiket resmi telah terbit. Selamat menikmati perjalanan Anda!`,
+          [
+            {
+              text: "Kembali ke Beranda",
+              onPress: () => router.replace("/"),
+            },
+          ]
+        );
+      })
+      .catch((error: Error) => {
+        Alert.alert("Pembayaran Gagal", error.message);
+      })
+      .finally(() => {
+        setIsProcessingPayment(false);
+      });
+  };
 
   return (
     <View style={styles.outerWrapper}>
@@ -135,18 +186,11 @@ export default function DetailTiket() {
                 <TouchableOpacity
                   style={styles.changeSeatButton}
                   onPress={() => {
-                    router.push({
-                      pathname: "/pilih-kursi",
-                      params: {
-                        ...params,
-                        kursi: kursiDipilih,
-                        gerbong: gerbongDipilih,
-                      },
-                    });
+                    router.push("/profile" as any);
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.changeSeatButtonText}>💺 Ubah Kursi</Text>
+                  <Text style={styles.changeSeatButtonText}>Lihat Profil</Text>
                 </TouchableOpacity>
               </View>
 
@@ -173,7 +217,7 @@ export default function DetailTiket() {
               <Text style={styles.seatNoteText}>
                 {isKursiManual
                   ? "✓ Kursi telah dipilih secara manual oleh Anda"
-                  : "* Kursi dipilih otomatis oleh sistem. Klik 'Ubah Kursi' untuk memilih denah."}
+                  : "* Kursi dipilih otomatis oleh sistem. Klik 'Lihat Profil' untuk data akun."}
               </Text>
             </View>
 
@@ -203,27 +247,29 @@ export default function DetailTiket() {
 
           {/* Action Buttons */}
           <TouchableOpacity
-            style={styles.payButton}
-            onPress={() => {
-              router.push({
-                pathname: "/pembayaran",
-                params: {
-                  ...params,
-                  gerbong: labelGerbong,
-                  kursi: kursiDipilih,
-                  totalHarga: totalHarga.toString(),
-                },
-              });
-            }}
+            style={[
+              styles.payButton,
+              isProcessingPayment && { opacity: 0.8, backgroundColor: "#64748B" },
+            ]}
+            onPress={handleLanjutkanPembayaran}
             activeOpacity={0.85}
+            disabled={isProcessingPayment}
           >
-            <Text style={styles.payButtonText}>Lanjutkan Pembayaran →</Text>
+            {isProcessingPayment ? (
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
+                <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.payButtonText}>Memproses Pembayaran...</Text>
+              </View>
+            ) : (
+              <Text style={styles.payButtonText}>Lanjutkan Pembayaran</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.buttonBack}
             onPress={() => router.back()}
             activeOpacity={0.7}
+            disabled={isProcessingPayment}
           >
             <Text style={styles.buttonBackText}>← Ubah Pencarian Jadwal</Text>
           </TouchableOpacity>
