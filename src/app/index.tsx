@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Booking, Schedule, Station, supabase } from "@/lib/supabase";
 import { Stasiun } from "@/types";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -114,6 +114,8 @@ export default function HomeScreen() {
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
+  const userId = user?.id;
+  const isFetchingBookings = useRef(false);
 
   // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -224,17 +226,19 @@ export default function HomeScreen() {
 
   // 2. Mengambil riwayat tiket milik user aktif dari tabel public.bookings (RLS)
   const fetchUserBookings = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setUserBookings([]);
       return;
     }
+    if (isFetchingBookings.current) return;
+    isFetchingBookings.current = true;
     setLoadingBookings(true);
     try {
       // 1. Coba query relasional dengan join schedules(*)
       let { data, error } = await supabase
         .from("bookings")
         .select("*, schedules(*)")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
       // 2. Jika join schedules(*) gagal (misal schema cache PostgREST relasi belum aktif),
@@ -244,7 +248,7 @@ export default function HomeScreen() {
         const fallbackRes = await supabase
           .from("bookings")
           .select("*")
-          .eq("user_id", user.id)
+          .eq("user_id", userId)
           .order("created_at", { ascending: false });
 
         if (!fallbackRes.error && fallbackRes.data) {
@@ -286,9 +290,10 @@ export default function HomeScreen() {
     } catch (err: any) {
       console.warn("Exception get bookings:", err.message);
     } finally {
+      isFetchingBookings.current = false;
       setLoadingBookings(false);
     }
-  }, [user]);
+  }, [userId]);
 
   // Pull-to-refresh state & handler
   const [refreshing, setRefreshing] = useState(false);
@@ -298,24 +303,24 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [fetchUserBookings]);
 
-  // useFocusEffect dari expo-router: selalu re-fetch tiket saat layar kembali aktif / fokus
+  // useFocusEffect dari expo-router: hanya re-fetch tiket saat layar kembali aktif jika sedang di tab Tiket Saya
   useFocusEffect(
     useCallback(() => {
       if (params.tab === "tiket") {
         setActiveTab("tiket");
       }
-      if (user) {
+      if (activeTab === "tiket" && userId) {
         fetchUserBookings();
       }
-    }, [params.tab, user, fetchUserBookings])
+    }, [params.tab, activeTab, userId, fetchUserBookings])
   );
 
-  // Selalu re-fetch tiket saat activeTab berpindah ke tab Tiket Saya atau params.tab === "tiket"
+  // Fetch tiket saat user membuka tab Tiket Saya
   useEffect(() => {
-    if ((activeTab === "tiket" || params.tab === "tiket") && user) {
+    if (activeTab === "tiket" && userId) {
       fetchUserBookings();
     }
-  }, [activeTab, params.tab, user, fetchUserBookings]);
+  }, [activeTab, userId, fetchUserBookings]);
 
   // 3. Batalkan Tiket (UPDATE status='cancelled' dengan perlindungan RLS)
   const handleBatalkanTiket = (bookingId: string) => {
