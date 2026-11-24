@@ -188,6 +188,7 @@ export default function PilihKursiScreen() {
       pathname: "/detail",
       params: {
         ...params,
+        schedule_id: (params.schedule_id as string) || "",
         kursi: seatString,
         gerbong: wagonSummary,
       },
@@ -199,6 +200,15 @@ export default function PilihKursiScreen() {
       <View style={styles.container}>
         {/* Info Header Kereta */}
         <View style={styles.headerBanner}>
+          <TouchableOpacity
+            style={{ marginBottom: 12, alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 8, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 6 }}
+            onPress={() => router.back()}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 12, color: colors.white, fontWeight: "700" }}>
+              ← Kembali ke Detail
+            </Text>
+          </TouchableOpacity>
           <View style={styles.headerTop}>
             <View>
               <Text style={styles.headerTrainName}>{namaKereta}</Text>

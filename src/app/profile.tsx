@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React from "react";
 import {
+  Alert,
   Platform,
   ScrollView,
   StyleSheet,
@@ -10,12 +11,34 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DesignSystem } from "@/constants/theme";
+import { useAuth } from "@/context/AuthContext";
 
 const { colors } = DesignSystem;
 
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, signOut } = useAuth();
+
+  const handleLogout = () => {
+    Alert.alert("Keluar dari Akun", "Apakah Anda yakin ingin keluar?", [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Keluar",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
+          router.replace("/");
+        },
+      },
+    ]);
+  };
+
+  const displayName =
+    user?.user_metadata?.full_name ||
+    (user?.email ? user.email.split("@")[0] : "Pengguna Keretaku");
+  const displayEmail = user?.email || "Belum Masuk";
+  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <View style={styles.outerWrapper}>
@@ -30,12 +53,14 @@ export default function ProfileScreen() {
         >
           <View style={styles.profileHeaderCard}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>KT</Text>
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
-            <Text style={styles.userName}>Pengguna Keretaku</Text>
-            <Text style={styles.userEmail}>penumpang@keretaku.id</Text>
+            <Text style={styles.userName}>{displayName}</Text>
+            <Text style={styles.userEmail}>{displayEmail}</Text>
             <View style={styles.badgeWrapper}>
-              <Text style={styles.badgeText}>Member Gold</Text>
+              <Text style={styles.badgeText}>
+                {user ? "Akun Supabase Aktif" : "Mode Tamu"}
+              </Text>
             </View>
           </View>
 
@@ -103,6 +128,42 @@ export default function ProfileScreen() {
               <Text style={styles.menuChevron}>›</Text>
             </TouchableOpacity>
           </View>
+
+          {user ? (
+            <TouchableOpacity
+              style={[
+                styles.backButton,
+                {
+                  backgroundColor: "#FEE2E2",
+                  borderColor: "#FCA5A5",
+                  borderWidth: 1,
+                  marginBottom: 12,
+                },
+              ]}
+              onPress={handleLogout}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.backButtonText, { color: "#DC2626" }]}>
+                🚪 Keluar dari Akun (Logout)
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.backButton,
+                {
+                  backgroundColor: colors.primary,
+                  marginBottom: 12,
+                },
+              ]}
+              onPress={() => router.push("/login" as any)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.backButtonText, { color: "#FFFFFF" }]}>
+                🔐 Masuk ke Akun Keretaku
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.backButton}

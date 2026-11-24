@@ -1,72 +1,70 @@
-import { Stack } from "expo-router";
+import React, { useEffect } from "react";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { DesignSystem } from "@/constants/theme";
+
+const { colors } = DesignSystem;
+
+function RootNavigationGuard() {
+  const { session, isLoading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const currentRoute = (segments as string[])[0] || "";
+
+    // Route Guard: Lindungi proses pembayaran jika pengguna belum login
+    if (!session && currentRoute === "pembayaran") {
+      router.replace("/login" as any);
+    } else if (session && currentRoute === "login") {
+      router.replace("/");
+    }
+  }, [session, isLoading, segments, router]);
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="detail" options={{ headerShown: false }} />
+      <Stack.Screen name="pembayaran" options={{ headerShown: false }} />
+      <Stack.Screen name="pilih-kursi" options={{ headerShown: false }} />
+      <Stack.Screen name="profile" options={{ headerShown: false }} />
+      <Stack.Screen name="explore" options={{ headerShown: false }} />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   return (
-    <>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: DesignSystem.colors.primary,
-          },
-          headerTintColor: DesignSystem.colors.white,
-          headerTitleStyle: {
-            fontWeight: "700",
-          },
-          contentStyle: {
-            backgroundColor: DesignSystem.colors.background,
-          },
-        }}
-      >
-        {/* Halaman Home: Header custom navbar menyatu dengan hero */}
-        <Stack.Screen
-          name="index"
-          options={{
-            headerShown: false,
-          }}
-        />
-        {/* Halaman Detail */}
-        <Stack.Screen
-          name="detail"
-          options={{
-            title: "Detail Pemesanan",
-            headerShown: true,
-          }}
-        />
-        {/* Halaman Pilih Kursi */}
-        <Stack.Screen
-          name="pilih-kursi"
-          options={{
-            title: "Pilih Kursi Kereta",
-            headerShown: true,
-          }}
-        />
-        {/* Halaman Pembayaran */}
-        <Stack.Screen
-          name="pembayaran"
-          options={{
-            title: "Pembayaran Tiket",
-            headerShown: true,
-          }}
-        />
-        <Stack.Screen
-          name="explore"
-          options={{
-            title: "Eksplorasi",
-            headerShown: true,
-          }}
-        />
-        {/* Halaman Profil Pengguna */}
-        <Stack.Screen
-          name="profile"
-          options={{
-            title: "Profil Pengguna",
-            headerShown: true,
-          }}
-        />
-      </Stack>
-    </>
+    <AuthProvider>
+      <StatusBar style="dark" />
+      <RootNavigationGuard />
+    </AuthProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+});

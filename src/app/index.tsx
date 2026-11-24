@@ -1,25 +1,39 @@
 import { DesignSystem } from "@/constants/theme";
-import { fetchCuacaKota, fetchStasiunWilayah } from "@/services/api";
-import { Stasiun, WeatherData } from "@/types";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { Booking, Schedule, Station, supabase } from "@/lib/supabase";
+import { Stasiun } from "@/types";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { colors } = DesignSystem;
 
 export type { Stasiun };
+
+export interface TrainItem {
+  id: number;
+  schedule_id?: string;
+  nama: string;
+  waktu: string;
+  durasi: number;
+  harga: number;
+  kelas: string;
+  sisaKursi: number;
+}
 
 // Data Fallback Pilihan Stasiun Jawa Timur
 const DAFTAR_STASIUN_DEFAULT: Stasiun[] = [
@@ -36,7 +50,7 @@ const DAFTAR_STASIUN_DEFAULT: Stasiun[] = [
 ];
 
 // Data Kereta Realistis
-const DATA_KERETA = [
+const DATA_KERETA: TrainItem[] = [
   {
     id: 1,
     nama: "Argo Bromo Anggrek",
@@ -99,6 +113,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { user, signOut } = useAuth();
 
   // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -119,15 +134,20 @@ export default function HomeScreen() {
     "beranda" | "tiket" | "bantuan" | "akun"
   >("beranda");
 
-  // State Data Stasiun dari External API Wilayah Jawa Timur (emsifa.github.io)
+  // Sinkronisasi perpindahan tab dari navigasi params (?tab=tiket atau ?tab=akun)
+  useEffect(() => {
+    if (params.tab === "tiket") {
+      setActiveTab("tiket");
+    } else if (params.tab === "akun") {
+      setActiveTab("akun");
+    }
+  }, [params.tab]);
+
+  // State Data Stasiun dari Supabase (public.stations)
   const [daftarStasiun, setDaftarStasiun] = useState<Stasiun[]>(
     DAFTAR_STASIUN_DEFAULT,
   );
   const [loadingStasiun, setLoadingStasiun] = useState(false);
-
-  // State Data Cuaca dari OpenWeatherMap API
-  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
-  const [weatherLoading, setWeatherLoading] = useState(false);
 
   // Booking Form States
   const [asal, setAsal] = useState<Stasiun>(DAFTAR_STASIUN_DEFAULT[0]); // Default Surabaya
@@ -138,47 +158,230 @@ export default function HomeScreen() {
   const [jumlahPenumpang, setJumlahPenumpang] = useState<number>(1);
   const [kelasDipilih, setKelasDipilih] = useState("Semua");
 
-  // Search results state
+  // Search results state & Supabase schedules
   const [hasSearched, setHasSearched] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [supabaseTrains, setSupabaseTrains] = useState<TrainItem[]>([]);
 
-  // Mengambil data kabupaten/kota Jawa Timur dari External API menggunakan useEffect
+  // User Bookings state dari Supabase (public.bookings join schedules)
+  const [userBookings, setUserBookings] = useState<Booking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+
+  // 1. Mengambil data stasiun dari tabel public.stations di Supabase
   useEffect(() => {
     let isMounted = true;
     setLoadingStasiun(true);
 
-    fetchStasiunWilayah()
-      .then((data: Stasiun[]) => {
-        if (isMounted && data.length > 0) {
-          setDaftarStasiun(data);
+    const loadStations = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("stations")
+          .select("*")
+          .order("name", { ascending: true });
+
+        if (!isMounted) return;
+        if (!error && data && data.length > 0) {
+          const mappedStations: Stasiun[] = data.map((item: any) => ({
+            kode: item.code,
+            nama: item.name,
+            kota: item.city,
+          }));
+          setDaftarStasiun(mappedStations);
           const defaultOrigin =
-            data.find((s) => s.kota.toLowerCase().includes("surabaya")) ||
-            data[0];
+            mappedStations.find((s) =>
+              s.kota.toLowerCase().includes("surabaya")
+            ) || mappedStations[0];
           const defaultDest =
-            data.find((s) => s.kota.toLowerCase().includes("malang")) ||
-            data[1] ||
-            data[0];
+            mappedStations.find((s) => s.kota.toLowerCase().includes("malang")) ||
+            mappedStations[1] ||
+            mappedStations[0];
 
           setAsal(defaultOrigin);
           setTujuan(defaultDest);
+        } else {
+          setDaftarStasiun(DAFTAR_STASIUN_DEFAULT);
+          setAsal(DAFTAR_STASIUN_DEFAULT[0]);
+          setTujuan(DAFTAR_STASIUN_DEFAULT[1]);
         }
-      })
-      .catch((error: Error) => {
-        console.warn(
-          "Gagal memuat API Wilayah, fallback aktif:",
-          error.message,
-        );
-      })
-      .finally(() => {
+      } catch (err: any) {
+        console.warn("Supabase stations fallback:", err);
+        if (isMounted) {
+          setDaftarStasiun(DAFTAR_STASIUN_DEFAULT);
+        }
+      } finally {
         if (isMounted) {
           setLoadingStasiun(false);
         }
-      });
+      }
+    };
+
+    loadStations();
 
     return () => {
       isMounted = false;
     };
   }, []);
+
+  // 2. Mengambil riwayat tiket milik user aktif dari tabel public.bookings (RLS)
+  const fetchUserBookings = useCallback(async () => {
+    if (!user) {
+      setUserBookings([]);
+      return;
+    }
+    setLoadingBookings(true);
+    try {
+      // 1. Coba query relasional dengan join schedules(*)
+      let { data, error } = await supabase
+        .from("bookings")
+        .select("*, schedules(*)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      // 2. Jika join schedules(*) gagal (misal schema cache PostgREST relasi belum aktif),
+      // gunakan query aman select("*") agar tiket tetap berhasil diambil
+      if (error) {
+        console.warn("Relational select with schedules(*) failed:", error.message);
+        const fallbackRes = await supabase
+          .from("bookings")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false });
+
+        if (!fallbackRes.error && fallbackRes.data) {
+          data = fallbackRes.data;
+          error = null;
+        }
+      }
+
+      console.log("FETCH USER BOOKINGS RESULT:", {
+        count: data?.length || 0,
+        error: error ? error.message : null,
+      });
+
+      if (error) {
+        console.warn("Gagal memuat tiket user:", error.message);
+      } else if (data) {
+        // Ambil data jadwal jika schedules bernilai null dan schedule_id tersedia
+        const resolvedBookings = await Promise.all(
+          data.map(async (bk: any) => {
+            if (bk.schedules) return bk;
+            if (bk.schedule_id) {
+              try {
+                const { data: schedData } = await supabase
+                  .from("schedules")
+                  .select("*")
+                  .eq("id", bk.schedule_id)
+                  .maybeSingle();
+                if (schedData) {
+                  return { ...bk, schedules: schedData };
+                }
+              } catch (_) {}
+            }
+            return bk;
+          })
+        );
+
+        setUserBookings(resolvedBookings as Booking[]);
+      }
+    } catch (err: any) {
+      console.warn("Exception get bookings:", err.message);
+    } finally {
+      setLoadingBookings(false);
+    }
+  }, [user]);
+
+  // Pull-to-refresh state & handler
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchUserBookings();
+    setRefreshing(false);
+  }, [fetchUserBookings]);
+
+  // useFocusEffect dari expo-router: selalu re-fetch tiket saat layar kembali aktif / fokus
+  useFocusEffect(
+    useCallback(() => {
+      if (params.tab === "tiket") {
+        setActiveTab("tiket");
+      }
+      if (user) {
+        fetchUserBookings();
+      }
+    }, [params.tab, user, fetchUserBookings])
+  );
+
+  // Selalu re-fetch tiket saat activeTab berpindah ke tab Tiket Saya atau params.tab === "tiket"
+  useEffect(() => {
+    if ((activeTab === "tiket" || params.tab === "tiket") && user) {
+      fetchUserBookings();
+    }
+  }, [activeTab, params.tab, user, fetchUserBookings]);
+
+  // 3. Batalkan Tiket (UPDATE status='cancelled' dengan perlindungan RLS)
+  const handleBatalkanTiket = (bookingId: string) => {
+    Alert.alert(
+      "Batalkan Tiket",
+      "Apakah Anda yakin ingin membatalkan perjalanan ini?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Ya, Batalkan",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("bookings")
+                .update({ status: "cancelled" })
+                .eq("id", bookingId)
+                .eq("user_id", user?.id || "");
+
+              if (error) {
+                Alert.alert("Gagal Membatalkan", error.message);
+              } else {
+                Alert.alert("Tiket Dibatalkan", "Status tiket Anda telah diperbarui menjadi dibatalkan.");
+                fetchUserBookings();
+              }
+            } catch (err: any) {
+              Alert.alert("Error", err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 4. Hapus Riwayat Tiket (DELETE dengan perlindungan RLS)
+  const handleHapusTiket = (bookingId: string) => {
+    Alert.alert(
+      "Hapus Riwayat Tiket",
+      "Hapus data riwayat tiket ini secara permanen dari Supabase?",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Hapus",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("bookings")
+                .delete()
+                .eq("id", bookingId)
+                .eq("user_id", user?.id || "");
+
+              if (error) {
+                Alert.alert("Gagal Menghapus", error.message);
+              } else {
+                Alert.alert("Tiket Dihapus", "Data tiket telah dihapus dari Supabase.");
+                fetchUserBookings();
+              }
+            } catch (err: any) {
+              Alert.alert("Error", err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Modals state
   const [stationModalVisible, setStationModalVisible] = useState(false);
@@ -217,7 +420,7 @@ export default function HomeScreen() {
     setTujuan(temp);
   };
 
-  // Filter Stasiun di Modal berdasarkan data API Wilayah
+  // Filter Stasiun di Modal
   const filteredStations = useMemo(() => {
     return daftarStasiun.filter((stasiun) => {
       const matchSearch =
@@ -251,35 +454,84 @@ export default function HomeScreen() {
     setStationModalVisible(false);
   };
 
-  // Trigger Pencarian Tiket Kereta & Fetch Cuaca dari OpenWeatherMap API
-  const handleCariTiket = () => {
+  // Trigger Pencarian Tiket Kereta dari tabel public.schedules di Supabase
+  const handleCariTiket = async () => {
     if (asal.kode === tujuan.kode) {
-      alert("Stasiun asal dan tujuan tidak boleh sama!");
+      Alert.alert("Perhatian", "Stasiun asal dan tujuan tidak boleh sama!");
       return;
     }
     setSearching(true);
     setHasSearched(true);
-    setWeatherLoading(true);
 
-    // Integrasi OpenWeatherMap API untuk kota tujuan (.then, .catch, .finally)
-    fetchCuacaKota(tujuan.kota)
-      .then((dataCuaca: WeatherData) => {
-        setWeatherData(dataCuaca);
-      })
-      .catch((error: Error) => {
-        console.warn("Gagal memuat cuaca tujuan:", error.message);
-      })
-      .finally(() => {
-        setWeatherLoading(false);
-        setSearching(false);
-      });
+    try {
+      const { data, error } = await supabase
+        .from("schedules")
+        .select("*")
+        .eq("origin_code", asal.kode)
+        .eq("destination_code", tujuan.kode);
+
+      if (!error && data && data.length > 0) {
+        const mapped: TrainItem[] = data.map((s: Schedule, idx: number) => {
+          const [depH] = (s.departure_time || "08:00").split(":").map(Number);
+          const [arrH] = (s.arrival_time || "12:00").split(":").map(Number);
+          let durasi = (arrH || 0) - (depH || 0);
+          if (durasi <= 0) durasi += 24;
+
+          return {
+            id: idx + 1,
+            schedule_id: s.id,
+            nama: s.train_name,
+            waktu: s.departure_time?.slice(0, 5) || "08:00",
+            durasi: durasi || 4,
+            harga: Number(s.price) || 250000,
+            kelas: s.train_class,
+            sisaKursi: 14 + (idx * 3),
+          };
+        });
+        setSupabaseTrains(mapped);
+      } else {
+        // Fallback realistis jika jadwal spesifik belum di-insert di tabel Supabase
+        setSupabaseTrains(
+          DATA_KERETA.map((k) => ({
+            ...k,
+            schedule_id: undefined,
+          }))
+        );
+      }
+    } catch (err: any) {
+      console.warn("Gagal query schedules Supabase:", err.message);
+      setSupabaseTrains(
+        DATA_KERETA.map((k) => ({
+          ...k,
+          schedule_id: undefined,
+        }))
+      );
+    } finally {
+      setSearching(false);
+    }
   };
 
   // Navigasi ke Detail
-  const handlePesanTiket = (item: (typeof DATA_KERETA)[0]) => {
+  const handlePesanTiket = (item: TrainItem) => {
+    if (!user) {
+      Alert.alert(
+        "Perlu Masuk Akun 🔐",
+        "Silakan masuk ke akun Keretaku Anda terlebih dahulu untuk memesan tiket kereta.",
+        [
+          { text: "Nanti Saja", style: "cancel" },
+          {
+            text: "Masuk Sekarang",
+            onPress: () => router.push("/login" as any),
+          },
+        ]
+      );
+      return;
+    }
+
     router.push({
       pathname: "/detail",
       params: {
+        schedule_id: item.schedule_id || "",
         nama: item.nama,
         waktu: item.waktu,
         harga: item.harga.toString(),
@@ -295,11 +547,13 @@ export default function HomeScreen() {
 
   // Filter Kereta sesuai Kelas yang Dipilih
   const displayTrains = useMemo(() => {
-    if (kelasDipilih === "Semua") return DATA_KERETA;
-    return DATA_KERETA.filter(
+    const list =
+      hasSearched && supabaseTrains.length > 0 ? supabaseTrains : DATA_KERETA;
+    if (kelasDipilih === "Semua") return list;
+    return list.filter(
       (k) => k.kelas.toLowerCase() === kelasDipilih.toLowerCase(),
     );
-  }, [kelasDipilih]);
+  }, [kelasDipilih, hasSearched, supabaseTrains]);
 
   // Quick date options
   const dateOptions = [
@@ -351,6 +605,14 @@ export default function HomeScreen() {
           style={styles.mainScrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
         >
           {activeTab === "beranda" && (
             <>
@@ -801,8 +1063,8 @@ export default function HomeScreen() {
 
               {/* DAFTAR JADWAL KERETA TERSEDIA */}
               <View style={styles.resultsContainer}>
-                {/* WIDGET PRAKIRAAN CUACA DESTINASI (OPENWEATHERMAP API) */}
-                {!searching && (weatherLoading || weatherData) && (
+                {/* STATUS BACKEND SUPABASE POSTGRESQL */}
+                {hasSearched && (
                   <View
                     style={[
                       styles.weatherCard,
@@ -820,7 +1082,7 @@ export default function HomeScreen() {
                             { color: colors.primary },
                           ]}
                         >
-                          ⛅ INFO CUACA DESTINASI
+                          ⚡ DATABASE SUPABASE
                         </Text>
                       </View>
                       <Text
@@ -829,81 +1091,29 @@ export default function HomeScreen() {
                           { color: theme.textSecondary },
                         ]}
                       >
-                        Tujuan: {tujuan.kota}
+                        Rute: {asal.kode} ➔ {tujuan.kode}
                       </Text>
                     </View>
-
-                    {weatherLoading ? (
-                      <View
+                    <View style={{ marginTop: 8 }}>
+                      <Text
                         style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          paddingVertical: 8,
+                          fontSize: 14,
+                          fontWeight: "700",
+                          color: colors.primary,
                         }}
                       >
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.primary}
-                          style={{ marginRight: 10 }}
-                        />
-                        <Text
-                          style={{
-                            fontSize: 13,
-                            color: theme.textSecondary,
-                            fontWeight: "500",
-                          }}
-                        >
-                          Menghubungkan ke OpenWeatherMap API...
-                        </Text>
-                      </View>
-                    ) : weatherData ? (
-                      <View style={{ marginTop: 8 }}>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            marginBottom: 6,
-                          }}
-                        >
-                          <Text style={{ fontSize: 36, marginRight: 12 }}>
-                            {weatherData.icon || "☀️"}
-                          </Text>
-                          <View>
-                            <Text
-                              style={{
-                                fontSize: 26,
-                                fontWeight: "800",
-                                color: theme.textPrimary,
-                              }}
-                            >
-                              {weatherData.temp}°C
-                            </Text>
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                fontWeight: "700",
-                                color: colors.primary,
-                                flexWrap: "wrap",
-                              }}
-                            >
-                              {weatherData.kondisi}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text
-                          style={{
-                            fontSize: 12,
-                            color: theme.textSecondary,
-                            marginTop: 4,
-                          }}
-                        >
-                          {weatherData.deskripsi}{" "}
-                          {weatherData.kelembaban !== undefined
-                            ? `• Kelembaban: ${weatherData.kelembaban}%`
-                            : ""}
-                        </Text>
-                      </View>
-                    ) : null}
+                        Jadwal Kereta & RLS Aktif
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          color: theme.textSecondary,
+                          marginTop: 3,
+                        }}
+                      >
+                        Data stasiun & jadwal bersumber langsung dari Supabase tanpa perantara External API.
+                      </Text>
+                    </View>
                   </View>
                 )}
                 <View style={styles.resultsHeaderRow}>
@@ -1167,42 +1377,359 @@ export default function HomeScreen() {
                 <Text
                   style={[styles.tabContentSub, { color: theme.textSecondary }]}
                 >
-                  Daftar perjalanan & e-ticket Anda
+                  Daftar perjalanan & e-ticket resmi Anda
                 </Text>
               </View>
-              <View
-                style={[
-                  styles.ticketEmptyCard,
-                  { backgroundColor: theme.card, borderColor: theme.border },
-                ]}
-              >
-                <Text style={styles.ticketEmptyIcon}>🎟️</Text>
-                <Text
+
+              {!user ? (
+                <View
                   style={[
-                    styles.ticketEmptyTitle,
-                    { color: theme.textPrimary },
+                    styles.ticketEmptyCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
                   ]}
                 >
-                  Belum Ada Tiket Aktif
-                </Text>
-                <Text
-                  style={[
-                    styles.ticketEmptyText,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Perjalanan yang Anda pesan akan langsung tampil di sini dengan
-                  QR Code boarding pass.
-                </Text>
-                <TouchableOpacity
-                  style={styles.tabActionButton}
-                  onPress={() => setActiveTab("beranda")}
-                >
-                  <Text style={styles.tabActionButtonText}>
-                    Cari Tiket Sekarang
+                  <Text style={styles.ticketEmptyIcon}>🔐</Text>
+                  <Text
+                    style={[
+                      styles.ticketEmptyTitle,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
+                    Masuk untuk Melihat E-Tiket
                   </Text>
-                </TouchableOpacity>
-              </View>
+                  <Text
+                    style={[
+                      styles.ticketEmptyText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Seluruh tiket yang Anda beli tersimpan aman di database Supabase dan dilindungi oleh Row Level Security (RLS).
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.tabActionButton}
+                    onPress={() => router.push("/login" as any)}
+                  >
+                    <Text style={styles.tabActionButtonText}>
+                      Masuk / Daftar Akun
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : loadingBookings ? (
+                <View
+                  style={[
+                    styles.ticketEmptyCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text
+                    style={[
+                      styles.ticketEmptyText,
+                      { color: theme.textSecondary, marginTop: 12 },
+                    ]}
+                  >
+                    Memuat daftar tiket dari Supabase...
+                  </Text>
+                </View>
+              ) : userBookings.length === 0 ? (
+                <View
+                  style={[
+                    styles.ticketEmptyCard,
+                    { backgroundColor: theme.card, borderColor: theme.border },
+                  ]}
+                >
+                  <Text style={styles.ticketEmptyIcon}>🎟️</Text>
+                  <Text
+                    style={[
+                      styles.ticketEmptyTitle,
+                      { color: theme.textPrimary },
+                    ]}
+                  >
+                    Belum Ada Tiket Aktif
+                  </Text>
+                  <Text
+                    style={[
+                      styles.ticketEmptyText,
+                      { color: theme.textSecondary },
+                    ]}
+                  >
+                    Perjalanan yang Anda pesan akan langsung tampil di sini dengan QR Code boarding pass dan status pembayaran.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.tabActionButton}
+                    onPress={() => setActiveTab("beranda")}
+                  >
+                    <Text style={styles.tabActionButtonText}>
+                      Cari Tiket Sekarang
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={{ width: "100%" }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "700",
+                        color: colors.primary,
+                      }}
+                    >
+                      Ditemukan {userBookings.length} Tiket
+                    </Text>
+                    <TouchableOpacity
+                      onPress={fetchUserBookings}
+                      style={{
+                        paddingVertical: 4,
+                        paddingHorizontal: 10,
+                        backgroundColor: "#EBF1F7",
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "600",
+                          color: colors.primary,
+                        }}
+                      >
+                        🔄 Segarkan
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {userBookings.map((bk) => {
+                    const isCancelled = bk.status === "cancelled";
+                    return (
+                      <View
+                        key={bk.id}
+                        style={[
+                          styles.trainCard,
+                          {
+                            backgroundColor: theme.card,
+                            borderColor: isCancelled ? "#FECACA" : theme.border,
+                            borderWidth: 1,
+                            marginBottom: 14,
+                          },
+                        ]}
+                      >
+                        {/* Header Tiket */}
+                        <View style={styles.trainCardHeader}>
+                          <View>
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                fontWeight: "800",
+                                color: colors.primary,
+                                letterSpacing: 0.5,
+                              }}
+                            >
+                              PNR: KTK-{bk.id.slice(0, 8).toUpperCase()}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.trainNameText,
+                                { color: theme.textPrimary, marginTop: 2 },
+                              ]}
+                            >
+                              {bk.schedules?.train_name || "Kereta Api Express"}
+                            </Text>
+                          </View>
+                          <View
+                            style={[
+                              styles.classBadge,
+                              isCancelled
+                                ? { backgroundColor: "#FEE2E2" }
+                                : { backgroundColor: "#DCFCE7" },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.classBadgeText,
+                                isCancelled
+                                  ? { color: "#DC2626" }
+                                  : { color: "#16A34A" },
+                              ]}
+                            >
+                              {isCancelled ? "DIBATALKAN" : "LUNAS (PAID)"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Rute & Tanggal */}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginTop: 10,
+                            paddingVertical: 8,
+                            paddingHorizontal: 12,
+                            backgroundColor: theme.inputBg,
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "700",
+                              color: theme.textPrimary,
+                            }}
+                          >
+                            {bk.schedules?.origin_code || asal.kode} ➔{" "}
+                            {bk.schedules?.destination_code || tujuan.kode}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: theme.textSecondary,
+                              fontWeight: "500",
+                            }}
+                          >
+                            📅 {bk.travel_date}
+                          </Text>
+                        </View>
+
+                        {/* Info Penumpang & Kursi */}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            marginTop: 10,
+                          }}
+                        >
+                          <View>
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: theme.textSecondary,
+                              }}
+                            >
+                              Nama Penumpang
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "700",
+                                color: theme.textPrimary,
+                              }}
+                            >
+                              {bk.passenger_name}
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: "center" }}>
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: theme.textSecondary,
+                              }}
+                            >
+                              Nomor Kursi
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "700",
+                                color: colors.primary,
+                              }}
+                            >
+                              {bk.seat_number}
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text
+                              style={{
+                                fontSize: 11,
+                                color: theme.textSecondary,
+                              }}
+                            >
+                              Total Bayar
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "800",
+                                color: colors.activeOrange,
+                              }}
+                            >
+                              {formatRupiah(bk.total_price)}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.cardDivider,
+                            { backgroundColor: theme.border, marginVertical: 12 },
+                          ]}
+                        />
+
+                        {/* Tombol Aksi CRUD Tiket */}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          {!isCancelled ? (
+                            <TouchableOpacity
+                              style={{
+                                paddingVertical: 8,
+                                paddingHorizontal: 14,
+                                backgroundColor: "#FEE2E2",
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: "#FCA5A5",
+                              }}
+                              onPress={() => handleBatalkanTiket(bk.id)}
+                              activeOpacity={0.8}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: "700",
+                                  color: "#DC2626",
+                                }}
+                              >
+                                Batalkan Tiket (UPDATE)
+                              </Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <TouchableOpacity
+                              style={{
+                                paddingVertical: 8,
+                                paddingHorizontal: 14,
+                                backgroundColor: "#F1F5F9",
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: "#CBD5E1",
+                              }}
+                              onPress={() => handleHapusTiket(bk.id)}
+                              activeOpacity={0.8}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: "600",
+                                  color: "#64748B",
+                                }}
+                              >
+                                Hapus Riwayat (DELETE)
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           )}
 
@@ -1328,13 +1855,27 @@ export default function HomeScreen() {
                 ]}
               >
                 <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarInitials}>KT</Text>
+                  <Text style={styles.avatarInitials}>
+                    {user
+                      ? (
+                          user.user_metadata?.full_name ||
+                          user.email ||
+                          "KT"
+                        )
+                          .slice(0, 2)
+                          .toUpperCase()
+                      : "?"}
+                  </Text>
                 </View>
                 <View style={styles.profileInfo}>
                   <Text
                     style={[styles.profileName, { color: theme.textPrimary }]}
                   >
-                    Pengguna Keretaku
+                    {user
+                      ? user.user_metadata?.full_name ||
+                        user.email?.split("@")[0] ||
+                        "Pengguna Keretaku"
+                      : "Mode Tamu"}
                   </Text>
                   <Text
                     style={[
@@ -1342,14 +1883,67 @@ export default function HomeScreen() {
                       { color: theme.textSecondary },
                     ]}
                   >
-                    penumpang@keretaku.id
+                    {user ? user.email : "Belum masuk ke akun"}
                   </Text>
                   <View style={styles.memberBadge}>
                     <Text style={styles.memberBadgeText}>
-                      Member Terverifikasi
+                      {user ? "Akun Supabase Terverifikasi" : "Tamu"}
                     </Text>
                   </View>
                 </View>
+              </View>
+
+              {/* TOMBOL LOGIN / LOGOUT SUPABASE */}
+              <View style={{ marginBottom: 16 }}>
+                {user ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.tabActionButton,
+                      {
+                        backgroundColor: "#FEE2E2",
+                        borderWidth: 1,
+                        borderColor: "#FCA5A5",
+                      },
+                    ]}
+                    onPress={() => {
+                      Alert.alert(
+                        "Keluar dari Akun",
+                        "Apakah Anda yakin ingin keluar?",
+                        [
+                          { text: "Batal", style: "cancel" },
+                          {
+                            text: "Keluar",
+                            style: "destructive",
+                            onPress: async () => {
+                              await signOut();
+                              setActiveTab("beranda");
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.tabActionButtonText,
+                        { color: "#DC2626", fontWeight: "700" },
+                      ]}
+                    >
+                      🚪 Keluar dari Akun (Logout)
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.tabActionButton}
+                    onPress={() => router.push("/login" as any)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.tabActionButtonText}>
+                      🔐 Masuk / Daftar Akun Keretaku
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {/* TOGGLE SWITCH DARK MODE */}

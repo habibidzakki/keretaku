@@ -1,6 +1,5 @@
 import { DesignSystem } from "@/constants/theme";
-import { prosesSimulasiPembayaran } from "@/services/api";
-import { PaymentRequest, PaymentResult } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -21,6 +20,7 @@ export default function DetailTiket() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
@@ -79,45 +79,39 @@ export default function DetailTiket() {
   );
 
   const handleLanjutkanPembayaran = () => {
-    if (isProcessingPayment) return;
+    if (!user) {
+      Alert.alert(
+        "Perlu Masuk Akun 🔐",
+        "Silakan masuk ke akun Keretaku Anda terlebih dahulu untuk melanjutkan proses pembayaran.",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Masuk Sekarang",
+            onPress: () => router.push("/login" as any),
+          },
+        ]
+      );
+      return;
+    }
 
-    setIsProcessingPayment(true);
-
-    const paymentRequest: PaymentRequest = {
-      namaKereta: (params.nama as string) || "Kereta Api",
-      totalHarga: totalHarga,
-      jumlahTiket: jumlahTiket,
-      asal: (params.asal as string) || "Stasiun Asal",
-      tujuan: (params.tujuan as string) || "Stasiun Tujuan",
-      gerbong: labelGerbong,
-      kursi: kursiDipilih,
-    };
-
-    prosesSimulasiPembayaran(paymentRequest)
-      .then((result: PaymentResult) => {
-        Alert.alert(
-          "Pembayaran Berhasil! 🎉",
-          `${result.message}\n\n` +
-            `ID Transaksi: ${result.transactionId}\n` +
-            `Waktu: ${result.timestamp}\n` +
-            `Total Bayar: ${formatRupiah(result.totalBayar)}\n` +
-            `Gerbong: ${labelGerbong}\n` +
-            `Nomor Kursi: ${kursiDipilih}\n\n` +
-            `E-Tiket resmi telah terbit. Selamat menikmati perjalanan Anda!`,
-          [
-            {
-              text: "Kembali ke Beranda",
-              onPress: () => router.replace("/"),
-            },
-          ],
-        );
-      })
-      .catch((error: Error) => {
-        Alert.alert("Pembayaran Gagal", error.message);
-      })
-      .finally(() => {
-        setIsProcessingPayment(false);
-      });
+    router.push({
+      pathname: "/pembayaran" as any,
+      params: {
+        schedule_id: (params.schedule_id as string) || "",
+        nama: (params.nama as string) || "Kereta Api",
+        kelas: (params.kelas as string) || "Eksekutif",
+        waktu: (params.waktu as string) || "08:00",
+        harga: hargaPerTiket.toString(),
+        totalHarga: totalHarga.toString(),
+        jumlah: jumlahTiket.toString(),
+        durasi: (params.durasi as string) || "4",
+        gerbong: labelGerbong,
+        kursi: kursiDipilih,
+        asal: (params.asal as string) || "Stasiun Asal",
+        tujuan: (params.tujuan as string) || "Stasiun Tujuan",
+        tanggal: (params.tanggal as string) || "Hari ini",
+      },
+    });
   };
 
   return (
@@ -219,6 +213,7 @@ export default function DetailTiket() {
                       pathname: "/pilih-kursi" as any,
                       params: {
                         ...params,
+                        schedule_id: (params.schedule_id as string) || "",
                         gerbong: gerbongDipilih,
                         kursi: kursiDipilih,
                       },

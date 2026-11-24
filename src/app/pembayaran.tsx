@@ -15,6 +15,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DesignSystem } from "@/constants/theme";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 
 const { colors } = DesignSystem;
 
@@ -31,6 +33,7 @@ export default function PembayaranScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
   const namaKereta = (params.nama as string) || "Kereta Api";
   const kelasKereta = (params.kelas as string) || "Eksekutif";
@@ -114,19 +117,110 @@ export default function PembayaranScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
 
-  const handleSimulatePayment = () => {
+  const handleSimulatePayment = async () => {
     if (isExpired) {
       Alert.alert("Kedaluwarsa", "Waktu pembayaran telah habis. Silakan buat pesanan baru.");
       return;
     }
 
+    if (!user) {
+      Alert.alert(
+        "Gagal Memproses Transaksi 🔐",
+        "User belum login atau sesi autentikasi Supabase tidak ditemukan. Silakan login terlebih dahulu untuk menyimpan tiket ke akun Anda.",
+        [
+          { text: "Batal", style: "cancel" },
+          { text: "Masuk Sekarang", onPress: () => router.push("/login" as any) },
+        ]
+      );
+      return;
+    }
+
     setIsProcessing(true);
 
-    // Simulasi respons bank / gateway pembayaran selama 1.5 detik
-    setTimeout(() => {
-      setIsProcessing(false);
+    try {
+      let targetScheduleId = (params.schedule_id as string) || null;
+      const isUUID =
+        targetScheduleId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          targetScheduleId
+        );
+
+      if (!isUUID) {
+        // Jika jadwal berasal dari data fallback lokal yang tidak memiliki UUID valid di Supabase,
+        // ambil id jadwal pertama yang tersedia dari tabel schedules Supabase agar tidak melanggar foreign key constraint
+        const { data: firstSchedule, error: schedErr } = await supabase
+          .from("schedules")
+          .select("id")
+          .limit(1)
+          .maybeSingle();
+
+        if (firstSchedule?.id) {
+          targetScheduleId = firstSchedule.id;
+        } else if (schedErr) {
+          console.warn("Gagal mengambil fallback schedule id dari Supabase:", schedErr.message);
+        }
+      }
+
+      // Pastikan targetScheduleId tidak kosong
+      if (!targetScheduleId) {
+        Alert.alert(
+          "Gagal Memproses Transaksi",
+          "ID Jadwal (schedule_id) tidak valid dan tidak ditemukan jadwal di tabel schedules Supabase. Harap pastikan tabel schedules telah terisi minimal 1 data."
+        );
+        setIsProcessing(false);
+        return;
+      }
+
+      // Validasi tegas: user dan targetScheduleId wajib ada
+      if (!user || !targetScheduleId) {
+        Alert.alert(
+          "Data Tidak Lengkap",
+          `Gagal melanjutkan: ${!user ? "User tidak terautentikasi. " : ""}${!targetScheduleId ? "Schedule ID tidak ditemukan." : ""}`
+        );
+        setIsProcessing(false);
+        return;
+      }
+
+      // Pastikan semua kolom yang di-insert sesuai dengan skema tabel public.bookings:
+      // user_id, schedule_id, passenger_name, seat_number, travel_date, total_price, status: 'paid'
+      const bookingPayload: any = {
+        user_id: user.id,
+        schedule_id: targetScheduleId,
+        passenger_name:
+          user.user_metadata?.full_name ||
+          (user.email ? user.email.split("@")[0] : "Penumpang Keretaku"),
+        seat_number: `${gerbong} - ${kursi}`,
+        travel_date: tanggal,
+        total_price: totalHarga,
+        status: "paid",
+      };
+
+      const { data, error } = await supabase
+        .from("bookings")
+        .insert([bookingPayload])
+        .select();
+
+      console.log("INSERT BOOKING RESULT:", { data, error });
+
+      if (error) {
+        console.error("Gagal simpan booking ke Supabase:", error);
+        Alert.alert(
+          "Gagal Menyimpan Transaksi",
+          `Terjadi kesalahan pada Supabase:\n\n${error.message || JSON.stringify(error)}`
+        );
+        return;
+      }
+
       setIsSuccessModalVisible(true);
-    }, 1500);
+    } catch (err: any) {
+      console.error("Exception saat insert booking:", err);
+      Alert.alert(
+        "Gagal Menyimpan Transaksi",
+        `Terjadi kendala jaringan atau sistem:\n\n${err.message || String(err)}`
+      );
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -589,11 +683,42 @@ export default function PembayaranScreen() {
                 style={styles.successActionBtn}
                 onPress={() => {
                   setIsSuccessModalVisible(false);
-                  router.replace("/");
+                  router.replace({
+                    pathname: "/",
+                    params: { tab: "tiket" },
+                  });
                 }}
                 activeOpacity={0.85}
               >
-                <Text style={styles.successActionBtnText}>Selesai & Kembali ke Beranda</Text>
+                <Text style={styles.successActionBtnText}>
+                  🎟️ Selesai & Lihat Tiket Saya
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.successActionBtn,
+                  {
+                    backgroundColor: "transparent",
+                    borderWidth: 1,
+                    borderColor: "#CBD5E1",
+                    marginTop: 8,
+                  },
+                ]}
+                onPress={() => {
+                  setIsSuccessModalVisible(false);
+                  router.replace("/");
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.successActionBtnText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Kembali ke Beranda
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
