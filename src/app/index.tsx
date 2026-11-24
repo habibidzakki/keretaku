@@ -33,20 +33,29 @@ export interface TrainItem {
   harga: number;
   kelas: string;
   sisaKursi: number;
+  asalKode?: string;
+  tujuanKode?: string;
 }
 
-// Data Fallback Pilihan Stasiun Jawa Timur
+// Data Fallback Pilihan Stasiun Jawa Timur & Nasional
 const DAFTAR_STASIUN_DEFAULT: Stasiun[] = [
   { kode: "SGU", nama: "Stasiun Surabaya Gubeng", kota: "Surabaya" },
   { kode: "ML", nama: "Stasiun Malang", kota: "Malang" },
-  { kode: "SDA", nama: "Stasiun Sidoarjo", kota: "Sidoarjo" },
+  { kode: "KD", nama: "Stasiun Kediri", kota: "Kediri" },
+  { kode: "YK", nama: "Stasiun Yogyakarta", kota: "Yogyakarta" },
+  { kode: "GMR", nama: "Stasiun Gambir", kota: "Jakarta" },
+  { kode: "BD", nama: "Stasiun Bandung", kota: "Bandung" },
+  { kode: "SMT", nama: "Stasiun Semarang Tawang", kota: "Semarang" },
+  { kode: "SLO", nama: "Stasiun Solo Balapan", kota: "Surakarta" },
+  { kode: "BL", nama: "Stasiun Blitar", kota: "Blitar" },
+  { kode: "MN", nama: "Stasiun Madiun", kota: "Madiun" },
   { kode: "JR", nama: "Stasiun Jember", kota: "Jember" },
   { kode: "BW", nama: "Stasiun Banyuwangi", kota: "Banyuwangi" },
-  { kode: "MN", nama: "Stasiun Madiun", kota: "Madiun" },
-  { kode: "KD", nama: "Stasiun Kediri", kota: "Kediri" },
-  { kode: "BL", nama: "Stasiun Blitar", kota: "Blitar" },
+  { kode: "SDA", nama: "Stasiun Sidoarjo", kota: "Sidoarjo" },
   { kode: "PS", nama: "Stasiun Pasuruan", kota: "Pasuruan" },
   { kode: "PB", nama: "Stasiun Probolinggo", kota: "Probolinggo" },
+  { kode: "PSE", nama: "Stasiun Pasar Senen", kota: "Jakarta" },
+  { kode: "CN", nama: "Stasiun Cirebon", kota: "Cirebon" },
 ];
 
 // Data Kereta Realistis
@@ -135,13 +144,17 @@ export default function HomeScreen() {
   const [activeTab, setActiveTab] = useState<
     "beranda" | "tiket" | "bantuan" | "akun"
   >("beranda");
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
   // Sinkronisasi perpindahan tab dari navigasi params (?tab=tiket atau ?tab=akun)
   useEffect(() => {
     if (params.tab === "tiket") {
       setActiveTab("tiket");
+      router.setParams({ tab: undefined });
     } else if (params.tab === "akun") {
       setActiveTab("akun");
+      router.setParams({ tab: undefined });
     }
   }, [params.tab]);
 
@@ -182,29 +195,58 @@ export default function HomeScreen() {
           .order("name", { ascending: true });
 
         if (!isMounted) return;
-        if (!error && data && data.length > 0) {
-          const mappedStations: Stasiun[] = data.map((item: any) => ({
-            kode: item.code,
-            nama: item.name,
-            kota: item.city,
-          }));
-          setDaftarStasiun(mappedStations);
-          const defaultOrigin =
-            mappedStations.find((s) =>
-              s.kota.toLowerCase().includes("surabaya")
-            ) || mappedStations[0];
-          const defaultDest =
-            mappedStations.find((s) => s.kota.toLowerCase().includes("malang")) ||
-            mappedStations[1] ||
-            mappedStations[0];
 
-          setAsal(defaultOrigin);
-          setTujuan(defaultDest);
-        } else {
-          setDaftarStasiun(DAFTAR_STASIUN_DEFAULT);
-          setAsal(DAFTAR_STASIUN_DEFAULT[0]);
-          setTujuan(DAFTAR_STASIUN_DEFAULT[1]);
-        }
+        // Map data dari Supabase
+        const mappedStations: Stasiun[] =
+          !error && data && data.length > 0
+            ? data.map((item: any) => ({
+                kode: (item.code || item.kode || "").toUpperCase(),
+                nama: item.name || item.nama || "",
+                kota: item.city || item.kota || "",
+              }))
+            : [];
+
+        // Gabungkan daftar stasiun dari Supabase dengan daftar stasiun lokal secara unik berdasarkan kode stasiun
+        const mapByCode = new Map<string, Stasiun>();
+        // Masukkan stasiun lokal terlebih dahulu
+        DAFTAR_STASIUN_DEFAULT.forEach((s) =>
+          mapByCode.set(s.kode.toUpperCase(), s)
+        );
+        // Tambahkan / perbarui dengan data dari Supabase
+        mappedStations.forEach((s) => {
+          if (s.kode) mapByCode.set(s.kode.toUpperCase(), s);
+        });
+
+        const combinedStations = Array.from(mapByCode.values()).sort((a, b) =>
+          a.nama.localeCompare(b.nama)
+        );
+
+        setDaftarStasiun(combinedStations);
+
+        // Pertahankan stasiun yang sudah dipilih jika ada, jika belum gunakan default Surabaya & Malang
+        setAsal((prev) => {
+          if (prev && mapByCode.has(prev.kode.toUpperCase())) {
+            return mapByCode.get(prev.kode.toUpperCase())!;
+          }
+          return (
+            combinedStations.find((s) =>
+              s.kota.toLowerCase().includes("surabaya")
+            ) || combinedStations[0]
+          );
+        });
+
+        setTujuan((prev) => {
+          if (prev && mapByCode.has(prev.kode.toUpperCase())) {
+            return mapByCode.get(prev.kode.toUpperCase())!;
+          }
+          return (
+            combinedStations.find((s) =>
+              s.kota.toLowerCase().includes("malang")
+            ) ||
+            combinedStations[1] ||
+            combinedStations[0]
+          );
+        });
       } catch (err: any) {
         console.warn("Supabase stations fallback:", err);
         if (isMounted) {
@@ -306,13 +348,10 @@ export default function HomeScreen() {
   // useFocusEffect dari expo-router: hanya re-fetch tiket saat layar kembali aktif jika sedang di tab Tiket Saya
   useFocusEffect(
     useCallback(() => {
-      if (params.tab === "tiket") {
-        setActiveTab("tiket");
-      }
-      if (activeTab === "tiket" && userId) {
+      if (activeTabRef.current === "tiket" && userId) {
         fetchUserBookings();
       }
-    }, [params.tab, activeTab, userId, fetchUserBookings])
+    }, [userId, fetchUserBookings])
   );
 
   // Fetch tiket saat user membuka tab Tiket Saya
@@ -324,68 +363,130 @@ export default function HomeScreen() {
 
   // 3. Batalkan Tiket (UPDATE status='cancelled' dengan perlindungan RLS)
   const handleBatalkanTiket = (bookingId: string) => {
-    Alert.alert(
-      "Batalkan Tiket",
-      "Apakah Anda yakin ingin membatalkan perjalanan ini?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Ya, Batalkan",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from("bookings")
-                .update({ status: "cancelled" })
-                .eq("id", bookingId)
-                .eq("user_id", user?.id || "");
+    const executeBatal = async () => {
+      try {
+        const { error } = await supabase
+          .from("bookings")
+          .update({ status: "cancelled" })
+          .eq("id", bookingId)
+          .eq("user_id", userId || "");
 
-              if (error) {
-                Alert.alert("Gagal Membatalkan", error.message);
-              } else {
-                Alert.alert("Tiket Dibatalkan", "Status tiket Anda telah diperbarui menjadi dibatalkan.");
-                fetchUserBookings();
-              }
-            } catch (err: any) {
-              Alert.alert("Error", err.message);
-            }
+        if (error) {
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.alert(`Gagal Membatalkan: ${error.message}`);
+          } else {
+            Alert.alert("Gagal Membatalkan", error.message);
+          }
+        } else {
+          // Optimistic update agar status tiket langsung berubah di layar
+          setUserBookings((prev) =>
+            prev.map((b) =>
+              b.id === bookingId ? { ...b, status: "cancelled" } : b
+            )
+          );
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.alert(
+              "Tiket Berhasil Dibatalkan!\nStatus tiket Anda telah diperbarui menjadi dibatalkan."
+            );
+          } else {
+            Alert.alert(
+              "Tiket Dibatalkan",
+              "Status tiket Anda telah diperbarui menjadi dibatalkan."
+            );
+          }
+          await fetchUserBookings();
+        }
+      } catch (err: any) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.alert(`Error: ${err.message}`);
+        } else {
+          Alert.alert("Error", err.message);
+        }
+      }
+    };
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "Batalkan Tiket:\nApakah Anda yakin ingin membatalkan perjalanan ini?"
+      );
+      if (confirmed) {
+        executeBatal();
+      }
+    } else {
+      Alert.alert(
+        "Batalkan Tiket",
+        "Apakah Anda yakin ingin membatalkan perjalanan ini?",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Ya, Batalkan",
+            style: "destructive",
+            onPress: executeBatal,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   // 4. Hapus Riwayat Tiket (DELETE dengan perlindungan RLS)
   const handleHapusTiket = (bookingId: string) => {
-    Alert.alert(
-      "Hapus Riwayat Tiket",
-      "Hapus data riwayat tiket ini secara permanen dari Supabase?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Hapus",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const { error } = await supabase
-                .from("bookings")
-                .delete()
-                .eq("id", bookingId)
-                .eq("user_id", user?.id || "");
+    const executeHapus = async () => {
+      try {
+        const { error } = await supabase
+          .from("bookings")
+          .delete()
+          .eq("id", bookingId)
+          .eq("user_id", userId || "");
 
-              if (error) {
-                Alert.alert("Gagal Menghapus", error.message);
-              } else {
-                Alert.alert("Tiket Dihapus", "Data tiket telah dihapus dari Supabase.");
-                fetchUserBookings();
-              }
-            } catch (err: any) {
-              Alert.alert("Error", err.message);
-            }
+        if (error) {
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.alert(`Gagal Menghapus: ${error.message}`);
+          } else {
+            Alert.alert("Gagal Menghapus", error.message);
+          }
+        } else {
+          // Optimistic update agar tiket langsung hilang dari layar
+          setUserBookings((prev) => prev.filter((b) => b.id !== bookingId));
+          if (Platform.OS === "web" && typeof window !== "undefined") {
+            window.alert("Tiket Dihapus:\nData tiket telah dihapus dari Supabase.");
+          } else {
+            Alert.alert(
+              "Tiket Dihapus",
+              "Data tiket telah dihapus dari Supabase."
+            );
+          }
+          await fetchUserBookings();
+        }
+      } catch (err: any) {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.alert(`Error: ${err.message}`);
+        } else {
+          Alert.alert("Error", err.message);
+        }
+      }
+    };
+
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "Hapus Riwayat Tiket:\nHapus data riwayat tiket ini secara permanen dari Supabase?"
+      );
+      if (confirmed) {
+        executeHapus();
+      }
+    } else {
+      Alert.alert(
+        "Hapus Riwayat Tiket",
+        "Hapus data riwayat tiket ini secara permanen dari Supabase?",
+        [
+          { text: "Batal", style: "cancel" },
+          {
+            text: "Hapus",
+            style: "destructive",
+            onPress: executeHapus,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   // Modals state
@@ -428,18 +529,32 @@ export default function HomeScreen() {
   // Filter Stasiun di Modal
   const filteredStations = useMemo(() => {
     return daftarStasiun.filter((stasiun) => {
+      const q = stationSearchText.trim().toLowerCase();
       const matchSearch =
-        stasiun.nama.toLowerCase().includes(stationSearchText.toLowerCase()) ||
-        stasiun.kode.toLowerCase().includes(stationSearchText.toLowerCase()) ||
-        stasiun.kota.toLowerCase().includes(stationSearchText.toLowerCase());
+        !q ||
+        stasiun.nama.toLowerCase().includes(q) ||
+        stasiun.kode.toLowerCase().includes(q) ||
+        stasiun.kota.toLowerCase().includes(q);
 
       const matchCity =
         selectedCityFilter === "Semua" ||
+        stasiun.kota.toLowerCase() === selectedCityFilter.toLowerCase() ||
         stasiun.kota.toLowerCase().includes(selectedCityFilter.toLowerCase());
 
       return matchSearch && matchCity;
     });
   }, [daftarStasiun, stationSearchText, selectedCityFilter]);
+
+  // List filter kota unik untuk modal stasiun
+  const availableCities = useMemo(() => {
+    const cityList = ["Semua"];
+    daftarStasiun.forEach((s) => {
+      if (s.kota && !cityList.includes(s.kota)) {
+        cityList.push(s.kota);
+      }
+    });
+    return cityList;
+  }, [daftarStasiun]);
 
   // Open modal stasiun
   const handleOpenStationModal = (type: "asal" | "tujuan") => {
@@ -451,10 +566,15 @@ export default function HomeScreen() {
 
   // Select station
   const handleSelectStation = (item: Stasiun) => {
+    const selected: Stasiun = {
+      kode: item.kode.toUpperCase(),
+      nama: item.nama,
+      kota: item.kota,
+    };
     if (pickingFor === "asal") {
-      setAsal(item);
+      setAsal(selected);
     } else {
-      setTujuan(item);
+      setTujuan(selected);
     }
     setStationModalVisible(false);
   };
@@ -469,11 +589,23 @@ export default function HomeScreen() {
     setHasSearched(true);
 
     try {
+      // 1. Ambil jadwal dari Supabase sesuai origin_code dan destination_code
       const { data, error } = await supabase
         .from("schedules")
         .select("*")
         .eq("origin_code", asal.kode)
         .eq("destination_code", tujuan.kode);
+
+      // 2. Ambil fallback valid UUID dari schedules untuk foreign key jika rute belum di-seed di database
+      let fallbackScheduleId: string | undefined = undefined;
+      const { data: fallbackSched } = await supabase
+        .from("schedules")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+      if (fallbackSched?.id) {
+        fallbackScheduleId = fallbackSched.id;
+      }
 
       if (!error && data && data.length > 0) {
         const mapped: TrainItem[] = data.map((s: Schedule, idx: number) => {
@@ -491,26 +623,94 @@ export default function HomeScreen() {
             harga: Number(s.price) || 250000,
             kelas: s.train_class,
             sisaKursi: 14 + (idx * 3),
+            asalKode: s.origin_code,
+            tujuanKode: s.destination_code,
           };
         });
         setSupabaseTrains(mapped);
       } else {
-        // Fallback realistis jika jadwal spesifik belum di-insert di tabel Supabase
-        setSupabaseTrains(
-          DATA_KERETA.map((k) => ({
-            ...k,
-            schedule_id: undefined,
-          }))
-        );
+        // Fallback dinamis jika rute spesifik belum ada di tabel Supabase
+        // Buat jadwal dinamis berdasarkan stasiun asal dan tujuan yang dipilih pengguna
+        const dynamicTrains: TrainItem[] = [
+          {
+            id: 1,
+            schedule_id: fallbackScheduleId,
+            nama: `Argo ${asal.kota.split(" ")[0]} Express`,
+            waktu: "07:30",
+            durasi: 5,
+            harga: 420000,
+            kelas: "Eksekutif",
+            sisaKursi: 12,
+            asalKode: asal.kode,
+            tujuanKode: tujuan.kode,
+          },
+          {
+            id: 2,
+            schedule_id: fallbackScheduleId,
+            nama: "Malioboro Ekspres",
+            waktu: "10:15",
+            durasi: 6,
+            harga: 290000,
+            kelas: "Ekonomi",
+            sisaKursi: 28,
+            asalKode: asal.kode,
+            tujuanKode: tujuan.kode,
+          },
+          {
+            id: 3,
+            schedule_id: fallbackScheduleId,
+            nama: "Jayabaya",
+            waktu: "13:40",
+            durasi: 5,
+            harga: 320000,
+            kelas: "Bisnis",
+            sisaKursi: 19,
+            asalKode: asal.kode,
+            tujuanKode: tujuan.kode,
+          },
+          {
+            id: 4,
+            schedule_id: fallbackScheduleId,
+            nama: "Gajayana",
+            waktu: "17:25",
+            durasi: 6,
+            harga: 480000,
+            kelas: "Eksekutif",
+            sisaKursi: 8,
+            asalKode: asal.kode,
+            tujuanKode: tujuan.kode,
+          },
+          {
+            id: 5,
+            schedule_id: fallbackScheduleId,
+            nama: "Matarmaja",
+            waktu: "20:50",
+            durasi: 7,
+            harga: 180000,
+            kelas: "Ekonomi",
+            sisaKursi: 40,
+            asalKode: asal.kode,
+            tujuanKode: tujuan.kode,
+          },
+        ];
+        setSupabaseTrains(dynamicTrains);
       }
     } catch (err: any) {
       console.warn("Gagal query schedules Supabase:", err.message);
-      setSupabaseTrains(
-        DATA_KERETA.map((k) => ({
-          ...k,
+      setSupabaseTrains([
+        {
+          id: 1,
           schedule_id: undefined,
-        }))
-      );
+          nama: `Ekspres ${asal.kode}-${tujuan.kode}`,
+          waktu: "08:00",
+          durasi: 5,
+          harga: 350000,
+          kelas: "Eksekutif",
+          sisaKursi: 15,
+          asalKode: asal.kode,
+          tujuanKode: tujuan.kode,
+        },
+      ]);
     } finally {
       setSearching(false);
     }
@@ -543,6 +743,12 @@ export default function HomeScreen() {
         kelas: item.kelas,
         asal: `${asal.kode} - ${asal.nama} (${asal.kota})`,
         tujuan: `${tujuan.kode} - ${tujuan.nama} (${tujuan.kota})`,
+        asalKode: asal.kode,
+        asalNama: asal.nama,
+        asalKota: asal.kota,
+        tujuanKode: tujuan.kode,
+        tujuanNama: tujuan.nama,
+        tujuanKota: tujuan.kota,
         jumlah: jumlahPenumpang.toString(),
         durasi: item.durasi.toString(),
         tanggal: tanggalPergi,
@@ -1269,7 +1475,7 @@ export default function HomeScreen() {
                                 { color: theme.textSecondary },
                               ]}
                             >
-                              {asal.kode}
+                              {item.asalKode || asal.kode}
                             </Text>
                           </View>
 
@@ -1322,7 +1528,7 @@ export default function HomeScreen() {
                                 { color: theme.textSecondary },
                               ]}
                             >
-                              {tujuan.kode}
+                              {item.tujuanKode || tujuan.kode}
                             </Text>
                           </View>
                         </View>
@@ -1511,6 +1717,18 @@ export default function HomeScreen() {
 
                   {userBookings.map((bk) => {
                     const isCancelled = bk.status === "cancelled";
+                    const seatParts = (bk.seat_number || "").split(" • ");
+                    const cleanSeat = seatParts[0]?.trim() || bk.seat_number;
+                    const dynamicRoute = seatParts[1]?.trim() || null;
+                    const dynamicTrain = seatParts[2]?.trim() || null;
+
+                    const displayTrainName = dynamicTrain || bk.schedules?.train_name || "Kereta Api Express";
+                    const displayRoute = dynamicRoute || (
+                      bk.schedules?.origin_code && bk.schedules?.destination_code
+                        ? `${bk.schedules.origin_code} ➔ ${bk.schedules.destination_code}`
+                        : `${asal.kode} ➔ ${tujuan.kode}`
+                    );
+
                     return (
                       <View
                         key={bk.id}
@@ -1543,7 +1761,7 @@ export default function HomeScreen() {
                                 { color: theme.textPrimary, marginTop: 2 },
                               ]}
                             >
-                              {bk.schedules?.train_name || "Kereta Api Express"}
+                              {displayTrainName}
                             </Text>
                           </View>
                           <View
@@ -1558,8 +1776,8 @@ export default function HomeScreen() {
                               style={[
                                 styles.classBadgeText,
                                 isCancelled
-                                  ? { color: "#DC2626" }
-                                  : { color: "#16A34A" },
+                                    ? { color: "#DC2626" }
+                                    : { color: "#16A34A" },
                               ]}
                             >
                               {isCancelled ? "DIBATALKAN" : "LUNAS (PAID)"}
@@ -1587,8 +1805,7 @@ export default function HomeScreen() {
                               color: theme.textPrimary,
                             }}
                           >
-                            {bk.schedules?.origin_code || asal.kode} ➔{" "}
-                            {bk.schedules?.destination_code || tujuan.kode}
+                            {displayRoute}
                           </Text>
                           <Text
                             style={{
@@ -1644,7 +1861,7 @@ export default function HomeScreen() {
                                 color: colors.primary,
                               }}
                             >
-                              {bk.seat_number}
+                              {cleanSeat}
                             </Text>
                           </View>
                           <View style={{ alignItems: "flex-end" }}>
@@ -1911,6 +2128,15 @@ export default function HomeScreen() {
                       },
                     ]}
                     onPress={() => {
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        const confirmed = window.confirm(
+                          "Keluar dari Akun:\nApakah Anda yakin ingin keluar?"
+                        );
+                        if (confirmed) {
+                          signOut().then(() => setActiveTab("beranda"));
+                        }
+                        return;
+                      }
                       Alert.alert(
                         "Keluar dari Akun",
                         "Apakah Anda yakin ingin keluar?",
@@ -2264,16 +2490,7 @@ export default function HomeScreen() {
                 style={styles.cityFilterScroll}
                 contentContainerStyle={styles.cityFilterContent}
               >
-                {[
-                  "Semua",
-                  "Surabaya",
-                  "Malang",
-                  "Sidoarjo",
-                  "Jember",
-                  "Banyuwangi",
-                  "Madiun",
-                  "Kediri",
-                ].map((city) => (
+                {availableCities.map((city) => (
                   <TouchableOpacity
                     key={city}
                     style={[
