@@ -24,6 +24,24 @@ export default function DetailTiket() {
 
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
+  const asalKode =
+    (params.asalKode as string) ||
+    (params.asal as string)?.split("-")[0]?.trim() ||
+    "SUB";
+  const asalNama = (params.asalNama as string) || "Stasiun Asal";
+  const asalKota = (params.asalKota as string) || "Surabaya";
+  const tujuanKode =
+    (params.tujuanKode as string) ||
+    (params.tujuan as string)?.split("-")[0]?.trim() ||
+    "ML";
+  const tujuanNama = (params.tujuanNama as string) || "Stasiun Tujuan";
+  const tujuanKota = (params.tujuanKota as string) || "Malang";
+
+  const ruteAsalDisplay =
+    (params.asal as string) || `${asalKode} - ${asalNama} (${asalKota})`;
+  const ruteTujuanDisplay =
+    (params.tujuan as string) || `${tujuanKode} - ${tujuanNama} (${tujuanKota})`;
+
   const hargaPerTiket = Number(params.harga) || 0;
   const jumlahTiket = Number(params.jumlah) || 1;
   const totalHarga = hargaPerTiket * jumlahTiket;
@@ -97,6 +115,7 @@ export default function DetailTiket() {
     router.push({
       pathname: "/pembayaran" as any,
       params: {
+        ...params,
         schedule_id: (params.schedule_id as string) || "",
         nama: (params.nama as string) || "Kereta Api",
         kelas: (params.kelas as string) || "Eksekutif",
@@ -107,8 +126,14 @@ export default function DetailTiket() {
         durasi: (params.durasi as string) || "4",
         gerbong: labelGerbong,
         kursi: kursiDipilih,
-        asal: (params.asal as string) || "Stasiun Asal",
-        tujuan: (params.tujuan as string) || "Stasiun Tujuan",
+        asal: ruteAsalDisplay,
+        tujuan: ruteTujuanDisplay,
+        asalKode,
+        asalNama,
+        asalKota,
+        tujuanKode,
+        tujuanNama,
+        tujuanKota,
         tanggal: (params.tanggal as string) || "Hari ini",
       },
     });
@@ -169,7 +194,7 @@ export default function DetailTiket() {
                     {params.waktu || "08:00"} WIB
                   </Text>
                   <Text style={styles.timelineStation}>
-                    {params.asal || "Stasiun Asal"}
+                    {ruteAsalDisplay}
                   </Text>
                   <Text style={styles.timelineDate}>
                     {params.tanggal || "Keberangkatan"}
@@ -189,7 +214,7 @@ export default function DetailTiket() {
                 <View style={styles.timelineContent}>
                   <Text style={styles.timelineTime}>{waktuTiba} WIB</Text>
                   <Text style={styles.timelineStation}>
-                    {params.tujuan || "Stasiun Tujuan"}
+                    {ruteTujuanDisplay}
                   </Text>
                   <Text style={styles.timelineDate}>
                     Durasi: {params.durasi || "4"} Jam
@@ -216,6 +241,14 @@ export default function DetailTiket() {
                         schedule_id: (params.schedule_id as string) || "",
                         gerbong: gerbongDipilih,
                         kursi: kursiDipilih,
+                        asal: ruteAsalDisplay,
+                        tujuan: ruteTujuanDisplay,
+                        asalKode,
+                        asalNama,
+                        asalKota,
+                        tujuanKode,
+                        tujuanNama,
+                        tujuanKota,
                       },
                     });
                   }}

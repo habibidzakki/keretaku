@@ -41,8 +41,20 @@ export default function PembayaranScreen() {
   const jumlahTiket = Number(params.jumlah) || 1;
   const gerbong = (params.gerbong as string) || "Eksekutif 1";
   const kursi = (params.kursi as string) || "3A";
-  const asal = (params.asal as string) || "Asal";
-  const tujuan = (params.tujuan as string) || "Tujuan";
+  const asalKode =
+    (params.asalKode as string) ||
+    (params.asal as string)?.split("-")[0]?.trim() ||
+    "SUB";
+  const asalNama = (params.asalNama as string) || "";
+  const asalKota = (params.asalKota as string) || "";
+  const tujuanKode =
+    (params.tujuanKode as string) ||
+    (params.tujuan as string)?.split("-")[0]?.trim() ||
+    "ML";
+  const tujuanNama = (params.tujuanNama as string) || "";
+  const tujuanKota = (params.tujuanKota as string) || "";
+  const asal = (params.asal as string) || `${asalKode} - ${asalNama} (${asalKota})`;
+  const tujuan = (params.tujuan as string) || `${tujuanKode} - ${tujuanNama} (${tujuanKota})`;
   const tanggal = (params.tanggal as string) || "Hari ini";
   const waktu = (params.waktu as string) || "08:00";
 
@@ -189,7 +201,7 @@ export default function PembayaranScreen() {
         passenger_name:
           user.user_metadata?.full_name ||
           (user.email ? user.email.split("@")[0] : "Penumpang Keretaku"),
-        seat_number: `${gerbong} - ${kursi}`,
+        seat_number: `${gerbong} - ${kursi} • ${asalKode} ➔ ${tujuanKode} • ${namaKereta}`,
         travel_date: tanggal,
         total_price: totalHarga,
         status: "paid",
@@ -278,7 +290,7 @@ export default function PembayaranScreen() {
                 <Text style={styles.summaryTrainClass}>{kelasKereta}</Text>
               </View>
               <Text style={styles.summaryRoute}>
-                {asal.split("-")[0].trim()} ➔ {tujuan.split("-")[0].trim()} • {tanggal} ({waktu} WIB)
+                {asalKode} ➔ {tujuanKode} • {tanggal} ({waktu} WIB)
               </Text>
               <View style={styles.summarySeatRow}>
                 <Text style={styles.summarySeatText}>
@@ -654,9 +666,21 @@ export default function PembayaranScreen() {
                   <Text style={styles.successVal}>{namaKereta}</Text>
                 </View>
                 <View style={styles.successRow}>
+                  <Text style={styles.successLabel}>Rute Perjalanan:</Text>
+                  <Text style={styles.successValBold}>
+                    {asalKode} ➔ {tujuanKode}
+                  </Text>
+                </View>
+                <View style={styles.successRow}>
                   <Text style={styles.successLabel}>Gerbong & Kursi:</Text>
                   <Text style={styles.successVal}>
                     {gerbong} ({kursi})
+                  </Text>
+                </View>
+                <View style={styles.successRow}>
+                  <Text style={styles.successLabel}>Jadwal:</Text>
+                  <Text style={styles.successVal}>
+                    {tanggal} • {waktu} WIB
                   </Text>
                 </View>
                 <View style={styles.successRow}>

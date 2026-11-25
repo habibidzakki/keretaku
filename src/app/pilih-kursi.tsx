@@ -28,8 +28,20 @@ export default function PilihKursiScreen() {
   const namaKereta = (params.nama as string) || "Kereta Api";
   const kelasKereta = (params.kelas as string) || "Eksekutif";
   const jumlahPenumpang = Math.max(1, Number(params.jumlah) || 1);
-  const ruteAsal = (params.asal as string) || "Asal";
-  const ruteTujuan = (params.tujuan as string) || "Tujuan";
+  const asalKode =
+    (params.asalKode as string) ||
+    (params.asal as string)?.split("-")[0]?.trim() ||
+    "SUB";
+  const asalNama = (params.asalNama as string) || "";
+  const asalKota = (params.asalKota as string) || "";
+  const tujuanKode =
+    (params.tujuanKode as string) ||
+    (params.tujuan as string)?.split("-")[0]?.trim() ||
+    "ML";
+  const tujuanNama = (params.tujuanNama as string) || "";
+  const tujuanKota = (params.tujuanKota as string) || "";
+  const ruteAsal = (params.asal as string) || `${asalKode}`;
+  const ruteTujuan = (params.tujuan as string) || `${tujuanKode}`;
   const tanggal = (params.tanggal as string) || "Tanggal Keberangkatan";
 
   // Konfigurasi Layout Gerbong berdasarkan Kelas
@@ -191,6 +203,14 @@ export default function PilihKursiScreen() {
         schedule_id: (params.schedule_id as string) || "",
         kursi: seatString,
         gerbong: wagonSummary,
+        asal: (params.asal as string) || ruteAsal,
+        tujuan: (params.tujuan as string) || ruteTujuan,
+        asalKode,
+        asalNama,
+        asalKota,
+        tujuanKode,
+        tujuanNama,
+        tujuanKota,
       },
     });
   };
