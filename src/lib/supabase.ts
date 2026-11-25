@@ -69,10 +69,14 @@ const ExpoSecureStoreAdapter = {
   },
 };
 
-const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL || "https://muhtgdroprouoocfcgen.supabase.co";
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_R5SxybuCgmYEh20H9-KXSQ_R8rsvKiN";
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    "[Supabase] EXPO_PUBLIC_SUPABASE_URL atau EXPO_PUBLIC_SUPABASE_ANON_KEY tidak ditemukan pada .env."
+  );
+}
 
 // Singleton Client Instance: Mencegah duplikasi GoTrueClient
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

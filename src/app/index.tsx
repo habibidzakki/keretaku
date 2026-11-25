@@ -816,6 +816,7 @@ export default function HomeScreen() {
           style={styles.mainScrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          alwaysBounceVertical={true}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

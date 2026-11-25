@@ -8,24 +8,33 @@ import { DesignSystem } from "@/constants/theme";
 const { colors } = DesignSystem;
 
 function RootNavigationGuard() {
-  const { session, isLoading } = useAuth();
+  const { user, isLoading, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
+  const isAuthLoading = isLoading ?? loading ?? false;
+
   useEffect(() => {
-    if (isLoading) return;
+    if (isAuthLoading) return;
 
     const currentRoute = (segments as string[])[0] || "";
+    const isProtectedRoute =
+      currentRoute === "pembayaran" || currentRoute === "profile";
+    const isAuthRoute = currentRoute === "login";
 
-    // Route Guard: Lindungi proses pembayaran jika pengguna belum login
-    if (!session && currentRoute === "pembayaran") {
+    // Route Guard:
+    // 1. Jika belum login dan mengakses halaman terproteksi, arahkan ke login
+    if (!user && isProtectedRoute) {
       router.replace("/login" as any);
-    } else if (session && currentRoute === "login") {
+    }
+    // 2. Jika user sudah login dan berada di halaman login, arahkan ke beranda (/)
+    else if (user && isAuthRoute) {
       router.replace("/");
     }
-  }, [session, isLoading, segments, router]);
+  }, [user, isAuthLoading, segments, router]);
 
-  if (isLoading) {
+  // Saat loading === true, tampilkan layar loading tanpa melakukan redirect (mencegah flicker)
+  if (isAuthLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.primary} />

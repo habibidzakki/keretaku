@@ -6,6 +6,7 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
+  loading: boolean;
   signIn: (email: string, password: string) => Promise<{ data?: any; error: Error | null }>;
   signUp: (
     email: string,
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   isLoading: true,
+  loading: true,
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   signOut: async () => {},
@@ -110,10 +112,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const user = session?.user ?? null;
+  const loading = isLoading;
 
   return (
     <AuthContext.Provider
-      value={{ session, user, isLoading, signIn, signUp, signOut }}
+      value={{ session, user, isLoading, loading, signIn, signUp, signOut }}
     >
       {children}
     </AuthContext.Provider>

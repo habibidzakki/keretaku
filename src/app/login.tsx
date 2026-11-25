@@ -30,12 +30,15 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!email.trim() || !password) {
+    const cleanEmail = email.trim();
+    const cleanFullName = fullName.trim();
+
+    if (!cleanEmail || !password) {
       Alert.alert("Perhatian", "Email dan kata sandi wajib diisi.");
       return;
     }
 
-    if (mode === "signup" && !fullName.trim()) {
+    if (mode === "signup" && !cleanFullName) {
       Alert.alert("Perhatian", "Nama lengkap wajib diisi untuk pendaftaran.");
       return;
     }
@@ -44,7 +47,7 @@ export default function LoginScreen() {
 
     try {
       if (mode === "signin") {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(cleanEmail, password);
         if (error) {
           Alert.alert("Gagal Masuk", error.message || "Email atau kata sandi salah.");
         } else {
@@ -56,7 +59,7 @@ export default function LoginScreen() {
           ]);
         }
       } else {
-        const { data, error } = await signUp(email, password, fullName);
+        const { data, error } = await signUp(cleanEmail, password, cleanFullName);
         if (error) {
           Alert.alert("Gagal Mendaftar", error.message || "Pendaftaran tidak dapat diproses.");
         } else {
